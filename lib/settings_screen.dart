@@ -1,5 +1,7 @@
-// settings_screen.dart
+// lib/settings_screen.dart
+// (You didn't provide this, but it's referenced - assume it's a separate file too. If not, create a placeholder like:)
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsScreen extends StatefulWidget {
   final double currentFontSize;
@@ -16,12 +18,21 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  late double _fontSize;
-
+  late double _currentFontSize;
+  
   @override
   void initState() {
     super.initState();
-    _fontSize = widget.currentFontSize;
+    _currentFontSize = widget.currentFontSize;
+  }
+
+  void _saveFontSize(double size) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble('font_size', size);
+    } catch (e) {
+      print('Error saving font size: $e');
+    }
   }
 
   @override
@@ -36,83 +47,130 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Font Size Section
             Card(
+              elevation: 2,
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Font Size',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                    Row(
+                      children: [
+                        Icon(Icons.text_fields, color: Colors.blue.shade700),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Font Size',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Font size preview
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: Text(
+                        'Preview Text - النص التجريبي',
+                        style: TextStyle(
+                          fontSize: _currentFontSize,
+                          height: 1.8,
+                          fontFamily: 'serif',
+                        ),
+                        textAlign: TextAlign.center,
+                        textDirection: TextDirection.rtl,
                       ),
                     ),
                     const SizedBox(height: 16),
                     
                     // Font size slider
-                    Row(
+                    Column(
                       children: [
-                        const Text('A', style: TextStyle(fontSize: 14)),
-                        Expanded(
-                          child: Slider(
-                            value: _fontSize,
-                            min: 12.0,
-                            max: 50.0,
-                            divisions: 20,
-                            label: _fontSize.round().toString(),
-                            onChanged: (value) {
-                              setState(() {
-                                _fontSize = value;
-                              });
-                              widget.onFontSizeChanged(value);
-                            },
-                          ),
+                        Slider(
+                          value: _currentFontSize,
+                          min: 12.0,
+                          max: 50.0, // Fixed: Proper max value
+                          divisions: 19, // Creates steps: (50-12)/2 = 19 steps of 2
+                          label: _currentFontSize.round().toString(),
+                          onChanged: (double value) {
+                            setState(() {
+                              _currentFontSize = value;
+                            });
+                          },
+                          onChangeEnd: (double value) {
+                            widget.onFontSizeChanged(value);
+                            _saveFontSize(value);
+                          },
                         ),
-                        const Text('A', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Small',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            Text(
+                              '${_currentFontSize.round()}',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue.shade700,
+                              ),
+                            ),
+                            Text(
+                              'Large',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
-                    ),
-                    
-                    const SizedBox(height: 16),
-                    
-                    // Preview text
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        'بَدْءُ إِنْجِيلِ يَسُوْعَ الْمَسِيحِ ابْنِ يَهْوِهِ',
-                        style: TextStyle(
-                          fontSize: _fontSize,
-                          fontFamily: 'serif',
-                          height: 1.8,
-                        ),
-                        textDirection: TextDirection.rtl,
-                        textAlign: TextAlign.right,
-                      ),
                     ),
                   ],
                 ),
               ),
             ),
             
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             
-            // Reset button
-            Center(
-              child: ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    _fontSize = 18.0;
-                  });
-                  widget.onFontSizeChanged(18.0);
-                },
-                child: const Text('Reset to Default'),
+            // Additional settings can be added here
+            Card(
+              elevation: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'About',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Holy Bible App\nVersion 1.0.0',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

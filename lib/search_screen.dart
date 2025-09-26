@@ -1,5 +1,6 @@
-// search_screen.dart
+// lib/search_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'; // ADD THIS IMPORT
 import 'bible_data.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -42,65 +43,103 @@ class _SearchScreenState extends State<SearchScreen> {
     List<SearchResult> results = [];
 
     try {
-      // Search through all books
+      // Search through all books - FIX: Don't skip based on file existence check
       for (int bookIndex = 0; bookIndex < BibleData.books.length; bookIndex++) {
         final book = BibleData.books[bookIndex];
         final bookName = book['name'];
         final totalChapters = book['chapters'] as int;
 
         try {
-          // Try to load and search in this book
+          // FIX: Try to load at least the first chapter to see if book is available
+          bool bookAvailable = true;
+          String testContent = "";
+          
+          try {
+            testContent = await BibleData.getChapterContent(bookIndex, 1);
+            // Check if this is an error/placeholder message
+            if (testContent.contains('غير متوفر') || 
+                testContent.contains('not available') ||
+                testContent.contains('سيتم إضافه') ||
+                testContent.contains('will be added') ||
+                testContent.length < 50) {
+              bookAvailable = false;
+            }
+          } catch (e) {
+            bookAvailable = false;
+          }
+
+          if (!bookAvailable) {
+            print('Skipping book $bookName - content not available');
+            continue;
+          }
+
           for (int chapter = 1; chapter <= totalChapters; chapter++) {
+            if (!mounted) return;
+            
             final content = await BibleData.getChapterContent(bookIndex, chapter);
             
-            // Skip if content is placeholder or error message (file not found)
+            // Check if this chapter has real content (not placeholder)
             if (content.contains('غير متوفر') || 
                 content.contains('not available') ||
                 content.contains('غير موجود') ||
                 content.contains('will be added') ||
-                content.contains('سيتم إضافته قريباً')) {
-              continue;
+                content.contains('سيتم إضافه') ||
+                content.contains('Error loading') ||
+                content.contains('empty file') ||
+                content.contains('An empty file') ||
+                content.length < 50) {
+              break; // Stop searching this book if chapter is unavailable
             }
 
-            // Use the new tashkeel-insensitive search
             if (BibleData.searchMatch(content, query)) {
-              
-              // Find the specific verse containing the search term
               final lines = content.split('\n');
               for (int lineIndex = 0; lineIndex < lines.length; lineIndex++) {
                 final line = lines[lineIndex];
+                if (line.trim().isEmpty) continue;
+                
                 if (BibleData.searchMatch(line, query)) {
-                  // Extract verse number if present
                   final verseMatch = RegExp(r'^(\d+)').firstMatch(line.trim());
                   final verseNumber = verseMatch?.group(1) ?? '';
                   
-                  results.add(SearchResult(
-                    bookName: bookName,
-                    bookIndex: bookIndex,
-                    chapterNumber: chapter,
-                    verseNumber: verseNumber,
-                    text: line.trim(),
-                    query: query,
-                  ));
+                  String cleanLine = line.trim();
+                  if (cleanLine.isNotEmpty && cleanLine.length > 1) {
+                    results.add(SearchResult(
+                      bookName: bookName,
+                      bookIndex: bookIndex,
+                      chapterNumber: chapter,
+                      verseNumber: verseNumber,
+                      text: cleanLine,
+                      query: query,
+                    ));
+                  }
                   
-                  // Limit results per chapter to avoid too many results
+                  if (!mounted) return;
                   if (results.length >= 100) break;
                 }
               }
             }
             
+            if (!mounted) return;
             if (results.length >= 100) break;
           }
         } catch (e) {
-          // Skip books that can't be loaded
           print('Error searching in book $bookName: $e');
           continue;
         }
         
+        if (!mounted) return;
         if (results.length >= 100) break;
       }
     } catch (e) {
       print('Search error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Search error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
 
     if (mounted) {
@@ -110,6 +149,7 @@ class _SearchScreenState extends State<SearchScreen> {
       });
     }
   }
+
 
   int _getGlobalChapter(int bookIndex, int chapterNumber) {
     int globalChapter = 1;

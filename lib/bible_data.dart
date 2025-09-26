@@ -1,4 +1,5 @@
-// bible_data.dart
+// lib/bible_data.dart
+// (unchanged, but here's the full for completeness - it's already modular)
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
@@ -259,6 +260,7 @@ ${file.path}''';
           print('File not found in assets: assets/bible_docs/$fileName - $e');
         }
       }
+      
       
       // If still not found, create placeholder file (mobile only) and return message
       if (!foundContent) {

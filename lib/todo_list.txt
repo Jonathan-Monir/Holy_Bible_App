@@ -1,0 +1,13 @@
+vico tasks:
+1. be able to put txt files in android
+2. more search option (search in some books)
+
+
+
+technical tasks
+1. faster search
+2. bad settings ui
+3. search goes to exact verse
+4. themes
+5. word colors
+6. dark mode if possible
