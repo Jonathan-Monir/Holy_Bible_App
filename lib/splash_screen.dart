@@ -55,7 +55,7 @@ class _SplashScreenState extends State<SplashScreen> {
             ),
             const SizedBox(height: 30),
             const Text(
-              'Holy Bible',
+              'الكتاب المقدس', // Changed to Arabic
               style: TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
@@ -64,7 +64,7 @@ class _SplashScreenState extends State<SplashScreen> {
             ),
             const SizedBox(height: 10),
             const Text(
-              '',
+              'ترجمة عربية باسم يهوه', // Added subtitle
               style: TextStyle(
                 fontSize: 16,
                 color: Colors.white70,

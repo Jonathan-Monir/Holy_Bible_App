@@ -111,39 +111,6 @@ class BibleData {
   }
 
   // Get the Bible documents directory path
-  static Future<String> getBibleDocsPath() async {
-    if (kIsWeb) {
-      return 'web_storage';
-    }
-    
-    Directory? directory;
-    
-    try {
-      // Try to get external storage directory first
-      if (Platform.isAndroid) {
-        directory = Directory('/storage/emulated/0/Documents');
-        if (!await directory.exists()) {
-          // Fallback to app documents directory
-          directory = await getApplicationDocumentsDirectory();
-        }
-      } else {
-        directory = await getApplicationDocumentsDirectory();
-      }
-    } catch (e) {
-      // Fallback to app documents directory
-      directory = await getApplicationDocumentsDirectory();
-    }
-    
-    final bibleDocsPath = '${directory!.path}/Holy_bible';
-    
-    // Create directory if it doesn't exist
-    final bibleDocsDir = Directory(bibleDocsPath);
-    if (!await bibleDocsDir.exists()) {
-      await bibleDocsDir.create(recursive: true);
-    }
-    
-    return bibleDocsPath;
-  }
 
   // Check storage permissions
   static Future<bool> _checkStoragePermissions() async {
@@ -205,15 +172,7 @@ class BibleData {
       final file = File('$bibleDocsPath/$fileName');
       
       if (!await file.exists()) {
-        final placeholder = '''الأصحَاحُ الأول
-
-هذا الكتاب ($arabicName - $bookName) غير متوفر حاليا.
-يرجى إضافة محتوى الكتاب إلى هذا الملف:
-${file.path}
-
-This book ($bookName - $arabicName) is not available currently.
-Please add the book content to this file:
-${file.path}''';
+        final placeholder = 'This book isn\'t available yet'; // Simplified message
         
         await file.writeAsString(placeholder);
         print('Created placeholder file: ${file.path}');
@@ -243,10 +202,19 @@ ${file.path}''';
         final bibleDocsPath = await getBibleDocsPath();
         final externalFile = File('$bibleDocsPath/$fileName');
         
+        print('Looking for file at: ${externalFile.path}');
+        print('File exists: ${await externalFile.exists()}');
+        
         if (await externalFile.exists()) {
-          content = await externalFile.readAsString();
-          foundContent = true;
-          print('Loaded from external storage: $fileName');
+          try {
+            content = await externalFile.readAsString();
+            foundContent = true;
+            print('✅ Successfully loaded from external storage: $fileName');
+          } catch (e) {
+            print('❌ Error reading file $fileName: $e');
+          }
+        } else {
+          print('❌ File not found in external storage: $fileName');
         }
       }
       
@@ -255,19 +223,18 @@ ${file.path}''';
         try {
           content = await rootBundle.loadString('assets/bible_docs/$fileName');
           foundContent = true;
-          print('Loaded from assets: $fileName');
+          print('✅ Loaded from assets: $fileName');
         } catch (e) {
-          print('File not found in assets: assets/bible_docs/$fileName - $e');
+          print('❌ File not found in assets: assets/bible_docs/$fileName');
         }
       }
-      
       
       // If still not found, create placeholder file (mobile only) and return message
       if (!foundContent) {
         if (!kIsWeb) {
           await createMissingBookFile(fileName, bookName, arabicName);
         }
-        return _getFileNotFoundMessage(book, fileName);
+        return 'This book isn\'t available yet';
       }
       
       // Parse the content and split into chapters
@@ -280,30 +247,73 @@ ${file.path}''';
       if (chapters.containsKey(chapterNumber)) {
         return chapters[chapterNumber]!;
       } else {
-        return 'الإصحاح $chapterNumber غير موجود في هذا الكتاب.\n\nالفصول المتاحة: ${chapters.keys.join(', ')}';
+        return 'This book isn\'t available yet';
       }
       
     } catch (e) {
-      print('Error loading chapter: $e');
-      return _getFileNotFoundMessage(book, fileName);
+      print('❌ Error loading chapter: $e');
+      return 'This book isn\'t available yet';
     }
   }
 
-  static String _getFileNotFoundMessage(Map<String, dynamic> book, String fileName) {
+  static Future<String> getBibleDocsPath() async {
     if (kIsWeb) {
-      return '''هذا الكتاب (${book['arabicName']} - ${book['name']}) غير متوفر في النسخة الإلكترونية حاليا.
-
-This book (${book['name']} - ${book['arabicName']}) is not available in the web version currently.''';
-    } else {
-      return '''هذا الكتاب (${book['arabicName']} - ${book['name']}) غير متوفر حاليا.
-تم إنشاء ملف فارغ في مجلد المستندات يمكنك إضافة المحتوى إليه.
-
-This book (${book['name']} - ${book['arabicName']}) is not available currently.
-An empty file has been created in the Documents folder where you can add the content.
-
-الملف: ${fileName}
-File: ${fileName}''';
+      return 'web_storage';
     }
+    
+    Directory? directory;
+    
+    try {
+      // Try to get external storage directory first
+      if (Platform.isAndroid) {
+        // Try multiple possible paths for Documents directory
+        List<String> possiblePaths = [
+          '/storage/emulated/0/Documents',
+          '/storage/emulated/0/Documents/Holy_bible',
+          '/sdcard/Documents',
+          '/sdcard/Documents/Holy_bible',
+        ];
+        
+        for (String path in possiblePaths) {
+          directory = Directory(path);
+          if (await directory.exists()) {
+            print('✅ Found documents directory: $path');
+            break;
+          }
+        }
+        
+        // If none of the above work, fallback to app documents directory
+        if (directory == null || !await directory.exists()) {
+          directory = await getApplicationDocumentsDirectory();
+          print('📁 Using app documents directory: ${directory.path}');
+        }
+      } else {
+        directory = await getApplicationDocumentsDirectory();
+      }
+    } catch (e) {
+      // Fallback to app documents directory
+      directory = await getApplicationDocumentsDirectory();
+      print('📁 Fallback to app documents directory: ${directory.path}');
+    }
+    
+    // If we found a Documents directory, use Holy_bible subdirectory
+    final bibleDocsPath = directory!.path.endsWith('Holy_bible') 
+        ? directory.path 
+        : '${directory.path}/Holy_bible';
+    
+    // Create directory if it doesn't exist
+    final bibleDocsDir = Directory(bibleDocsPath);
+    if (!await bibleDocsDir.exists()) {
+      await bibleDocsDir.create(recursive: true);
+      print('📂 Created directory: $bibleDocsPath');
+    }
+    
+    print('🎯 Final Bible docs path: $bibleDocsPath');
+    return bibleDocsPath;
+  }
+
+  static String _getFileNotFoundMessage(Map<String, dynamic> book, String fileName) {
+    return 'This book isn\'t available yet';
   }
 
   static Map<int, String> _parseDocumentContent(String content) {

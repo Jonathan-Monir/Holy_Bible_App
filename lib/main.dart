@@ -12,7 +12,7 @@ class HolyBibleApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Holy Bible',
+      title: 'الكتاب المقدس ترجمة عربية باسم يهوه', // Changed title
       theme: ThemeData(
         primarySwatch: Colors.blue,
         useMaterial3: true,
