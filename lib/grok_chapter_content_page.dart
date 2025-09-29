@@ -1,5 +1,4 @@
 // lib/chapter_content_page.dart
-import 'rtl_selectable_text.dart'; // Adjust path if needed
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
@@ -219,6 +218,85 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     return offsets;
   }
 
+  List<TextSpan> _buildAllVerseSpans() {
+    List<TextSpan> spans = [];
+    for (var verse in verses) {
+      if (verse.number == 0) {
+        spans.add(TextSpan(
+          text: '${verse.text}\n\n',
+          style: TextStyle(
+            fontSize: widget.fontSize * 1.1,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+            fontFamily: 'Amiri', // Use Arabic-specific font
+          ),
+        ));
+        continue;
+      }
+      spans.add(TextSpan(
+        text: '${verse.number} ',
+        style: TextStyle(
+          fontSize: widget.fontSize * 0.8,
+          fontWeight: FontWeight.bold,
+          color: Colors.blue.shade700,
+          fontFamily: 'Amiri', // Use Arabic-specific font
+        ),
+      ));
+      List<TextRange> hlRanges = highlightedRanges[_chapterKey]?[verse.number] ?? [];
+      List<TextRange> ulRanges = underlinedRanges[_chapterKey]?[verse.number] ?? [];
+      List<TextSpan> verseSpans = _buildVerseSpans(verse.text, hlRanges, ulRanges);
+      for (var span in verseSpans) {
+        spans.add(span.copyWith(
+          style: span.style?.copyWith(
+            fontSize: widget.fontSize,
+            fontWeight: FontWeight.normal,
+            height: 1.8,
+            color: Colors.black87,
+            fontFamily: 'Amiri', // Use Arabic-specific font
+          ) ?? TextStyle(
+            fontSize: widget.fontSize,
+            fontWeight: FontWeight.normal,
+            height: 1.8,
+            color: Colors.black87,
+            fontFamily: 'Amiri', // Use Arabic-specific font
+          ),
+        ));
+      }
+      spans.add(const TextSpan(text: '\n'));
+    }
+    return spans;
+  }
+
+  List<TextSpan> _buildVerseSpans(String verseText, List<TextRange> hlRanges, List<TextRange> ulRanges) {
+    if (verseText.isEmpty) return [TextSpan(text: verseText)];
+    
+    Set<int> points = {0, verseText.length};
+    for (var r in [...hlRanges, ...ulRanges]) {
+      points.add(r.start);
+      points.add(r.end);
+    }
+    List<int> sortedPoints = points.toList()..sort();
+    
+    List<TextSpan> spans = [];
+    for (int i = 0; i < sortedPoints.length - 1; i++) {
+      int start = sortedPoints[i];
+      int end = sortedPoints[i + 1];
+      bool isHighlighted = hlRanges.any((r) => r.start <= start && r.end >= end);
+      bool isUnderlined = ulRanges.any((r) => r.start <= start && r.end >= end);
+      
+      spans.add(TextSpan(
+        text: verseText.substring(start, end),
+        style: TextStyle(
+          backgroundColor: isHighlighted ? Colors.yellow : null,
+          decoration: isUnderlined ? TextDecoration.underline : null,
+          decorationColor: Colors.blue,
+          decorationThickness: 2,
+        ),
+      ));
+    }
+    return spans;
+  }
+
   List<TextRange> _toggleRange(List<TextRange> currentRanges, TextRange toggle) {
     List<TextRange> merged = _mergeRanges(currentRanges);
     
@@ -266,12 +344,112 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     return merged;
   }
 
-  // Fixed verse widget with proper RTL text selection handling
+  void _handleHighlight(TextSelection selection) {
+    print('Highlight called with selection: start=${selection.start}, end=${selection.end}');
+    if (selection.isCollapsed) return;
+    int start = min(selection.baseOffset, selection.extentOffset);
+    int end = max(selection.baseOffset, selection.extentOffset);
+    
+    setState(() {
+      for (var verse in verses.where((v) => v.number > 0)) {
+        int vNum = verse.number;
+        if (!verseOffsets.containsKey(vNum)) continue;
+        int vStart = verseOffsets[vNum]!;
+        int vEnd = vStart + verse.text.length;
+        if (end <= vStart || start >= vEnd) continue;
+        int lStart = max(0, start - vStart);
+        int lEnd = min(verse.text.length, end - vStart);
+        TextRange tr = TextRange(start: lStart, end: lEnd);
+        print('Toggling highlight for verse $vNum: $lStart-$lEnd');
+        
+        if (!highlightedRanges.containsKey(_chapterKey)) highlightedRanges[_chapterKey] = {};
+        if (!highlightedRanges[_chapterKey]!.containsKey(vNum)) highlightedRanges[_chapterKey]![vNum] = [];
+        highlightedRanges[_chapterKey]![vNum] = _toggleRange(highlightedRanges[_chapterKey]![vNum]!, tr);
+      }
+    });
+    
+    _saveHighlightedRanges();
+  }
+
+  void _handleUnderline(TextSelection selection) {
+    print('Underline called with selection: start=${selection.start}, end=${selection.end}');
+    if (selection.isCollapsed) return;
+    int start = min(selection.baseOffset, selection.extentOffset);
+    int end = max(selection.baseOffset, selection.extentOffset);
+    
+    setState(() {
+      for (var verse in verses.where((v) => v.number > 0)) {
+        int vNum = verse.number;
+        if (!verseOffsets.containsKey(vNum)) continue;
+        int vStart = verseOffsets[vNum]!;
+        int vEnd = vStart + verse.text.length;
+        if (end <= vStart || start >= vEnd) continue;
+        int lStart = max(0, start - vStart);
+        int lEnd = min(verse.text.length, end - vStart);
+        TextRange tr = TextRange(start: lStart, end: lEnd);
+        print('Toggling underline for verse $vNum: $lStart-$lEnd');
+        
+        if (!underlinedRanges.containsKey(_chapterKey)) underlinedRanges[_chapterKey] = {};
+        if (!underlinedRanges[_chapterKey]!.containsKey(vNum)) underlinedRanges[_chapterKey]![vNum] = [];
+        underlinedRanges[_chapterKey]![vNum] = _toggleRange(underlinedRanges[_chapterKey]![vNum]!, tr);
+      }
+    });
+    
+    _saveUnderlinedRanges();
+  }
+
+  Widget _buildContextMenu(BuildContext context, EditableTextState editableTextState) {
+    print('Context menu builder called');
+    final TextEditingValue value = editableTextState.textEditingValue;
+    final TextSelection selection = value.selection;
+
+    if (!selection.isValid || selection.isCollapsed) {
+      print('Selection invalid or collapsed, returning empty');
+      return const SizedBox.shrink();
+    }
+
+    final String selectedText = value.text.substring(selection.start, selection.end);
+    print('Selected text: $selectedText');
+
+    List<ContextMenuButtonItem> buttonItems = editableTextState.contextMenuButtonItems;
+
+    buttonItems.addAll([
+      ContextMenuButtonItem(
+        label: 'مشاركة', // Share in Arabic
+        onPressed: () {
+          Share.share(selectedText);
+          editableTextState.hideToolbar();
+        },
+      ),
+      ContextMenuButtonItem(
+        label: 'تمييز', // Highlight in Arabic
+        onPressed: () {
+          _handleHighlight(selection);
+          editableTextState.hideToolbar();
+        },
+      ),
+      ContextMenuButtonItem(
+        label: 'تسطير', // Underline in Arabic
+        onPressed: () {
+          _handleUnderline(selection);
+          editableTextState.hideToolbar();
+        },
+      ),
+    ]);
+
+    print('Building toolbar with ${buttonItems.length} items');
+    return AdaptiveTextSelectionToolbar.buttonItems(
+      anchors: editableTextState.contextMenuAnchors,
+      buttonItems: buttonItems,
+    );
+  }
+
+  // Alternative method using individual verse widgets for better RTL handling
   Widget _buildVerseWidget(VerseData verse, bool isArabic) {
     if (verse.number == 0) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 16.0),
-        child: Text(
+        child: SelectableText(
           verse.text,
           style: TextStyle(
             fontSize: widget.fontSize * 1.1,
@@ -290,38 +468,28 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Directionality(
         textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
-        children: [
-          // Verse number - always LTR
-          Container(
-            padding: const EdgeInsets.only(left: 4, right: 4),
-            child: Text(
-              '${verse.number}',
-              style: TextStyle(
-                fontSize: widget.fontSize * 0.8,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue.shade700,
-                fontFamily: isArabic ? 'Amiri' : 'serif',
-              ),
-              textDirection: TextDirection.ltr,
-            ),
-          ),
-          // Verse text - RTL selectable
-          Expanded(
-            child: SelectableText.rich(
+        child: SelectableText.rich(
+          TextSpan(
+            children: [
               TextSpan(
-                children: _buildVerseSpansForWidget(verse.text, hlRanges, ulRanges, isArabic),
+                text: '${verse.number} ',
+                style: TextStyle(
+                  fontSize: widget.fontSize * 0.8,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue.shade700,
+                  fontFamily: isArabic ? 'Amiri' : 'serif',
+                ),
               ),
-              textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
-              textAlign: isArabic ? TextAlign.right : TextAlign.left,
-              contextMenuBuilder: (context, editableTextState) {
-                return _buildVerseContextMenu(context, editableTextState, verse.number, isArabic);
-              },
-            ),
+              ..._buildVerseSpansForWidget(verse.text, hlRanges, ulRanges, isArabic),
+            ],
           ),
-        ],
+          textAlign: isArabic ? TextAlign.right : TextAlign.left,
+          contextMenuBuilder: (context, editableTextState) {
+            return _buildVerseContextMenu(context, editableTextState, verse.number);
+          },
+        ),
       ),
     );
   }
@@ -361,7 +529,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     return spans;
   }
 
-  Widget _buildVerseContextMenu(BuildContext context, EditableTextState editableTextState, int verseNumber, bool isArabic) {
+  Widget _buildVerseContextMenu(BuildContext context, EditableTextState editableTextState, int verseNumber) {
     final TextEditingValue value = editableTextState.textEditingValue;
     final TextSelection selection = value.selection;
 
@@ -371,36 +539,25 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
 
     final String selectedText = value.text.substring(selection.start, selection.end);
 
-    List<ContextMenuButtonItem> buttonItems = [];
-    
-    // Add copy button
-    buttonItems.add(
-      ContextMenuButtonItem(
-        label: isArabic ? 'نسخ' : 'Copy',
-        onPressed: () {
-          Clipboard.setData(ClipboardData(text: selectedText));
-          editableTextState.hideToolbar();
-        },
-      ),
-    );
+    List<ContextMenuButtonItem> buttonItems = editableTextState.contextMenuButtonItems;
 
     buttonItems.addAll([
       ContextMenuButtonItem(
-        label: isArabic ? 'مشاركة' : 'Share',
+        label: 'مشاركة', // Share in Arabic
         onPressed: () {
           Share.share(selectedText);
           editableTextState.hideToolbar();
         },
       ),
       ContextMenuButtonItem(
-        label: isArabic ? 'تمييز' : 'Highlight',
+        label: 'تمييز', // Highlight in Arabic
         onPressed: () {
           _handleVerseHighlight(selection, verseNumber);
           editableTextState.hideToolbar();
         },
       ),
       ContextMenuButtonItem(
-        label: isArabic ? 'تسطير' : 'Underline',
+        label: 'تسطير', // Underline in Arabic
         onPressed: () {
           _handleVerseUnderline(selection, verseNumber);
           editableTextState.hideToolbar();
@@ -417,8 +574,11 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   void _handleVerseHighlight(TextSelection selection, int verseNumber) {
     if (selection.isCollapsed) return;
     
-    int adjustedStart = selection.start;
-    int adjustedEnd = selection.end;
+    // Adjust for verse number prefix
+    int adjustedStart = selection.start - '${verseNumber} '.length;
+    int adjustedEnd = selection.end - '${verseNumber} '.length;
+    
+    if (adjustedStart < 0) adjustedStart = 0;
     
     TextRange tr = TextRange(start: adjustedStart, end: adjustedEnd);
     
@@ -434,8 +594,11 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   void _handleVerseUnderline(TextSelection selection, int verseNumber) {
     if (selection.isCollapsed) return;
     
-    int adjustedStart = selection.start;
-    int adjustedEnd = selection.end;
+    // Adjust for verse number prefix
+    int adjustedStart = selection.start - '${verseNumber} '.length;
+    int adjustedEnd = selection.end - '${verseNumber} '.length;
+    
+    if (adjustedStart < 0) adjustedStart = 0;
     
     TextRange tr = TextRange(start: adjustedStart, end: adjustedEnd);
     
@@ -451,60 +614,62 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   @override
   Widget build(BuildContext context) {
     bool isArabic = chapterContent.contains(RegExp(r'[\u0600-\u06FF]'));
+    TextDirection dir = isArabic ? TextDirection.rtl : TextDirection.ltr;
+    TextAlign align = isArabic ? TextAlign.right : TextAlign.left;
 
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: isArabic ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-        children: [
-          Text(
-            '${widget.bookName} ${widget.chapterNumber}',
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-            textAlign: isArabic ? TextAlign.right : TextAlign.left,
-            textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
-          ),
-          const SizedBox(height: 20),
-          Expanded(
-            child: isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: isArabic ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                      children: verses.map((verse) => _buildVerseWidget(verse, isArabic)).toList(),
-                    ),
-                  ),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade300),
-            ),
-            child: Text(
-              '${widget.arabicName} - افرايم بشرى برسوم (ترجمة فانديك منحقة باسم يَهْوِه)',
-              style: TextStyle(
-                fontSize: widget.fontSize * 0.8,
-                color: Colors.grey.shade700,
-                fontStyle: FontStyle.italic,
-                fontFamily: 'Amiri',
+    return Directionality(
+      textDirection: dir,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: isArabic ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${widget.bookName} ${widget.chapterNumber}',
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
               ),
-              textAlign: TextAlign.center,
-              textDirection: TextDirection.rtl,
+              textAlign: align,
             ),
-          ),
-        ],
+            const SizedBox(height: 20),
+            Expanded(
+              child: isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: isArabic ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                        children: verses.map((verse) => _buildVerseWidget(verse, isArabic)).toList(),
+                      ),
+                    ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Text(
+                '${widget.arabicName} - افرايم بشرى برسوم (ترجمة فانديك منحقة باسم يَهْوِه)',
+                style: TextStyle(
+                  fontSize: widget.fontSize * 0.8,
+                  color: Colors.grey.shade700,
+                  fontStyle: FontStyle.italic,
+                  fontFamily: 'Amiri',
+                ),
+                textAlign: TextAlign.center,
+                textDirection: TextDirection.rtl,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
-
-
 
 class VerseData {
   final int number;

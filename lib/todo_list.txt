@@ -4,6 +4,7 @@ vico tasks:
 3. tashkeel removal
 4. themes wtih dark mode
 5. word colors
+6. should select multiple verses
 
 
 

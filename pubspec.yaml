@@ -9,10 +9,13 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  google_fonts: ^6.1.0  # Add this line
+  share_plus: ^7.2.1
   shared_preferences: ^2.2.2
   path_provider: ^2.1.1
   permission_handler: ^11.0.1
-  share_plus: ^7.0.1
   cupertino_icons: ^1.0.2
 
 dev_dependencies:
@@ -21,8 +24,18 @@ dev_dependencies:
   flutter_lints: ^2.0.0
 
 flutter:
+  fonts:
+    - family: Amiri
+      fonts:
+        - asset: assets/fonts/Amiri-Regular.ttf
+        - asset: assets/fonts/Amiri-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Amiri-Italic.ttf
+          style: italic
+        - asset: assets/fonts/Amiri-BoldItalic.ttf
+          weight: 700
+          style: italic
   uses-material-design: true
-  
-  # Assets folder containing Bible files
+
   assets:
     - assets/bible_docs/
