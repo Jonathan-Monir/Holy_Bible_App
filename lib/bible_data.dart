@@ -1,5 +1,4 @@
 // lib/bible_data.dart
-// (unchanged, but here's the full for completeness - it's already modular)
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';

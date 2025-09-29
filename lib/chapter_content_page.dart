@@ -1,5 +1,4 @@
 // lib/chapter_content_page.dart
-import 'rtl_selectable_text.dart'; // Adjust path if needed
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
@@ -271,16 +270,19 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     if (verse.number == 0) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 16.0),
-        child: Text(
-          verse.text,
-          style: TextStyle(
-            fontSize: widget.fontSize * 1.1,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-            fontFamily: isArabic ? 'Amiri' : 'serif',
+        child: Align(
+          alignment: isArabic ? Alignment.centerRight : Alignment.centerLeft,
+          child: Text(
+            verse.text,
+            style: TextStyle(
+              fontSize: widget.fontSize * 1.1,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+              fontFamily: isArabic ? 'Amiri' : 'serif',
+            ),
+            textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+            textAlign: isArabic ? TextAlign.right : TextAlign.left,
           ),
-          textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
-          textAlign: isArabic ? TextAlign.right : TextAlign.left,
         ),
       );
     }
@@ -308,17 +310,19 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
               textDirection: TextDirection.ltr,
             ),
           ),
-          // Verse text - RTL selectable
+          // Verse text - using Container with alignment for proper RTL without RLM
           Expanded(
-            child: SelectableText.rich(
-              TextSpan(
-                children: _buildVerseSpansForWidget(verse.text, hlRanges, ulRanges, isArabic),
+            child: Container(
+              alignment: isArabic ? Alignment.centerRight : Alignment.centerLeft,
+              child: SelectableText.rich(
+                TextSpan(
+                  children: _buildVerseSpansForWidget(verse.text, hlRanges, ulRanges, isArabic),
+                ),
+                textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+                contextMenuBuilder: (context, editableTextState) {
+                  return _buildVerseContextMenu(context, editableTextState, verse.number, isArabic);
+                },
               ),
-              textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
-              textAlign: isArabic ? TextAlign.right : TextAlign.left,
-              contextMenuBuilder: (context, editableTextState) {
-                return _buildVerseContextMenu(context, editableTextState, verse.number, isArabic);
-              },
             ),
           ),
         ],
@@ -329,6 +333,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   List<TextSpan> _buildVerseSpansForWidget(String verseText, List<TextRange> hlRanges, List<TextRange> ulRanges, bool isArabic) {
     if (verseText.isEmpty) return [TextSpan(text: verseText)];
     
+    // Don't add RLM character - work with original text
     Set<int> points = {0, verseText.length};
     for (var r in [...hlRanges, ...ulRanges]) {
       points.add(r.start);
@@ -340,6 +345,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     for (int i = 0; i < sortedPoints.length - 1; i++) {
       int start = sortedPoints[i];
       int end = sortedPoints[i + 1];
+      
       bool isHighlighted = hlRanges.any((r) => r.start <= start && r.end >= end);
       bool isUnderlined = ulRanges.any((r) => r.start <= start && r.end >= end);
       
@@ -417,10 +423,8 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   void _handleVerseHighlight(TextSelection selection, int verseNumber) {
     if (selection.isCollapsed) return;
     
-    int adjustedStart = selection.start;
-    int adjustedEnd = selection.end;
-    
-    TextRange tr = TextRange(start: adjustedStart, end: adjustedEnd);
+    // No offset adjustment needed since we're not adding RLM
+    TextRange tr = TextRange(start: selection.start, end: selection.end);
     
     setState(() {
       if (!highlightedRanges.containsKey(_chapterKey)) highlightedRanges[_chapterKey] = {};
@@ -434,10 +438,8 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   void _handleVerseUnderline(TextSelection selection, int verseNumber) {
     if (selection.isCollapsed) return;
     
-    int adjustedStart = selection.start;
-    int adjustedEnd = selection.end;
-    
-    TextRange tr = TextRange(start: adjustedStart, end: adjustedEnd);
+    // No offset adjustment needed since we're not adding RLM
+    TextRange tr = TextRange(start: selection.start, end: selection.end);
     
     setState(() {
       if (!underlinedRanges.containsKey(_chapterKey)) underlinedRanges[_chapterKey] = {};
@@ -503,8 +505,6 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     );
   }
 }
-
-
 
 class VerseData {
   final int number;
