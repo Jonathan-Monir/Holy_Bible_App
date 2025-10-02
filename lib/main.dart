@@ -1,9 +1,16 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'splash_screen.dart';
+import 'theme_provider.dart';
 
 void main() {
-  runApp(const HolyBibleApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => ThemeProvider(),
+      child: const HolyBibleApp(),
+    ),
+  );
 }
 
 class HolyBibleApp extends StatelessWidget {
@@ -11,14 +18,15 @@ class HolyBibleApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'الكتاب المقدس ترجمة عربية باسم يهوه', // Changed title
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        useMaterial3: true,
-      ),
-      home: const SplashScreen(),
-      debugShowCheckedModeBanner: false,
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
+        return MaterialApp(
+          title: 'الكتاب المقدس ترجمة عربية باسم يهوه',
+          theme: themeProvider.themeData,
+          home: const SplashScreen(),
+          debugShowCheckedModeBanner: false,
+        );
+      },
     );
   }
 }

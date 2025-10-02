@@ -75,7 +75,6 @@ class BibleData {
     {'name': 'Revelation', 'shortName': 'Rev', 'chapters': 22, 'fileName': 'Revelation.txt', 'arabicName': 'الرؤيا'},
   ];
 
-  // Cache for loaded content
   static Map<String, Map<int, String>> _bookCache = {};
   static Map<String, Map<int, String>> _footnotesCache = {};
 
@@ -110,7 +109,6 @@ class BibleData {
     return {};
   }
 
-  // Check storage permissions
   static Future<bool> _checkStoragePermissions() async {
     if (kIsWeb || !Platform.isAndroid) {
       return true;
@@ -122,7 +120,6 @@ class BibleData {
         status = await Permission.storage.request();
       }
       
-      // For Android 11+, also check manage external storage if needed
       if (Platform.isAndroid) {
         var manageStatus = await Permission.manageExternalStorage.status;
         if (manageStatus.isDenied) {
@@ -137,7 +134,6 @@ class BibleData {
     }
   }
 
-  // Check if file exists in external storage
   static Future<bool> fileExistsInStorage(String fileName) async {
     if (kIsWeb) {
       return false;
@@ -152,14 +148,12 @@ class BibleData {
     }
   }
 
-  // Create missing book file with placeholder content
   static Future<void> createMissingBookFile(String fileName, String bookName, String arabicName) async {
     if (kIsWeb) {
       return;
     }
     
     try {
-      // Check permissions first
       bool hasPermission = await _checkStoragePermissions();
       if (!hasPermission) {
         print('Storage permission denied');
@@ -170,7 +164,7 @@ class BibleData {
       final file = File('$bibleDocsPath/$fileName');
       
       if (!await file.exists()) {
-        final placeholder = 'This book isn\'t available yet'; // Simplified message
+        final placeholder = 'This book isn\'t available yet';
         
         await file.writeAsString(placeholder);
         print('Created placeholder file: ${file.path}');
@@ -186,7 +180,6 @@ class BibleData {
     final bookName = book['name'];
     final arabicName = book['arabicName'];
 
-    // Check cache first
     if (_bookCache.containsKey(fileName) && _bookCache[fileName]!.containsKey(chapterNumber)) {
       return _bookCache[fileName]![chapterNumber]!;
     }
@@ -195,7 +188,6 @@ class BibleData {
     bool foundContent = false;
     
     try {
-      // Try to read from external storage first (only on mobile)
       if (!kIsWeb) {
         final bibleDocsPath = await getBibleDocsPath();
         final externalFile = File('$bibleDocsPath/$fileName');
@@ -216,7 +208,6 @@ class BibleData {
         }
       }
       
-      // If not found in external storage, try assets
       if (!foundContent) {
         try {
           content = await rootBundle.loadString('assets/bible_docs/$fileName');
@@ -227,7 +218,6 @@ class BibleData {
         }
       }
       
-      // If still not found, create placeholder file (mobile only) and return message
       if (!foundContent) {
         if (!kIsWeb) {
           await createMissingBookFile(fileName, bookName, arabicName);
@@ -235,13 +225,10 @@ class BibleData {
         return 'This book isn\'t available yet';
       }
       
-      // Parse the content and split into chapters
       final chapters = _parseDocumentContent(content!);
       
-      // Cache the parsed chapters
       _bookCache[fileName] = chapters;
       
-      // Return the requested chapter
       if (chapters.containsKey(chapterNumber)) {
         return chapters[chapterNumber]!;
       } else {
@@ -262,9 +249,7 @@ class BibleData {
     Directory? directory;
     
     try {
-      // Try to get external storage directory first
       if (Platform.isAndroid) {
-        // Try multiple possible paths for Documents directory
         List<String> possiblePaths = [
           '/storage/emulated/0/Documents',
           '/storage/emulated/0/Documents/Holy_bible',
@@ -280,7 +265,6 @@ class BibleData {
           }
         }
         
-        // If none of the above work, fallback to app documents directory
         if (directory == null || !await directory.exists()) {
           directory = await getApplicationDocumentsDirectory();
           print('📁 Using app documents directory: ${directory.path}');
@@ -289,17 +273,14 @@ class BibleData {
         directory = await getApplicationDocumentsDirectory();
       }
     } catch (e) {
-      // Fallback to app documents directory
       directory = await getApplicationDocumentsDirectory();
       print('📁 Fallback to app documents directory: ${directory.path}');
     }
     
-    // If we found a Documents directory, use Holy_bible subdirectory
     final bibleDocsPath = directory!.path.endsWith('Holy_bible') 
         ? directory.path 
         : '${directory.path}/Holy_bible';
     
-    // Create directory if it doesn't exist
     final bibleDocsDir = Directory(bibleDocsPath);
     if (!await bibleDocsDir.exists()) {
       await bibleDocsDir.create(recursive: true);
@@ -314,10 +295,8 @@ class BibleData {
     return 'This book isn\'t available yet';
   }
 
-  // lib/bible_data.dart - Updated _parseDocumentContent
   static Map<int, String> _parseDocumentContent(String content, {bool formatVerses = true}) {
     Map<int, String> chapters = {};
-    // Split by either الإصحَاحُ or الأصحَاحُ
     List<String> parts = content.split(RegExp(r'ال[إأ]صحَاحُ', multiLine: true));
     
     if (parts.length > 1) {
@@ -329,14 +308,12 @@ class BibleData {
         chapters[i] = chapterContent.trim();
       }
     } else {
-      // Fallback for single-chapter or no split
       String formatted = formatVerses ? _formatVerses(content.trim()) : content.trim();
       chapters[1] = formatted;
     }
     return chapters;
   }
 
-  // lib/bible_data.dart - Updated getChapterFootnotes
   static Future<String> getChapterFootnotes(int bookIndex, int chapterNumber) async {
     final book = books[bookIndex];
     final fileName = book['fileName'].replaceAll('.txt', '_footnotes.txt');
@@ -375,13 +352,9 @@ class BibleData {
     return chapters[chapterNumber] ?? '';
   }
 
-  // Helper method to format verses - each verse on new line
   static String _formatVerses(String content) {
-    // Replace verse numbers (Arabic digits) with newline + verse number
     String formatted = content;
     
-    // Match Arabic verse numbers like 1, 2, 3, etc. at the start of verses
-    // More precise pattern to avoid false matches
     formatted = formatted.replaceAllMapped(
       RegExp(r'(\s)(\d+)([^\d\s])', multiLine: true),
       (match) {
@@ -392,7 +365,6 @@ class BibleData {
       },
     );
     
-    // Also handle verse numbers at the very beginning
     formatted = formatted.replaceAllMapped(
       RegExp(r'^(\d+)([^\d\s])', multiLine: true),
       (match) {
@@ -402,22 +374,18 @@ class BibleData {
       },
     );
     
-    // Clean up extra newlines and spaces
     formatted = formatted.replaceAll(RegExp(r'\n\s*\n'), '\n\n');
     formatted = formatted.replaceAll(RegExp(r'^\n+'), '');
     
     return formatted;
   }
 
-  // Helper method to remove tashkeel (diacritics) from Arabic text
+  // NEW: Method to remove tashkeel (diacritics) from Arabic text
   static String removeTashkeel(String text) {
-    // Remove common Arabic diacritics
     return text.replaceAll(RegExp(r'[\u064B-\u0652\u0670\u0640]'), '');
   }
 
-  // Method to search with tashkeel-insensitive comparison
   static bool searchMatch(String content, String query) {
-    // Remove tashkeel from both content and query for comparison
     String cleanContent = removeTashkeel(content.toLowerCase());
     String cleanQuery = removeTashkeel(query.toLowerCase());
     

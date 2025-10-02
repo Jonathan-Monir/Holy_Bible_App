@@ -1,11 +1,14 @@
 // lib/main_reader_screen.dart
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // ADD THIS IMPORT
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
 import 'bible_data.dart';
 import 'settings_screen.dart';
 import 'search_screen.dart';
 import 'chapter_content_page.dart';
 import 'chapter_selector_screen.dart';
+import 'theme_provider.dart';
+
 class MainReaderScreen extends StatefulWidget {
   const MainReaderScreen({super.key});
 
@@ -18,30 +21,36 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
   int currentGlobalChapter = 1;
   final int totalChapters = BibleData.getTotalChapters();
   double _fontSize = 18.0;
+  String _fontFamily = 'Amiri';
+  bool _removeDiacritics = false;
   Set<int> loadedPages = {};
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: 0);
-    _loadSavedFontSize();
+    _loadSavedSettings();
   }
 
-  // Add this method to load saved font size
-  Future<void> _loadSavedFontSize() async {
+  Future<void> _loadSavedSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      
       final savedFontSize = prefs.getDouble('font_size');
-      if (savedFontSize != null && mounted) {
+      final savedFontFamily = prefs.getString('font_family');
+      final savedRemoveDiacritics = prefs.getBool('remove_diacritics');
+      
+      if (mounted) {
         setState(() {
-          _fontSize = savedFontSize;
+          if (savedFontSize != null) _fontSize = savedFontSize;
+          if (savedFontFamily != null) _fontFamily = savedFontFamily;
+          if (savedRemoveDiacritics != null) _removeDiacritics = savedRemoveDiacritics;
         });
       }
     } catch (e) {
-      print('Error loading font size: $e');
+      print('Error loading settings: $e');
     }
   }
-
 
   @override
   void dispose() {
@@ -91,10 +100,10 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
   @override
   Widget build(BuildContext context) {
     final chapterInfo = BibleData.getChapterInfo(currentGlobalChapter);
+    final themeProvider = Provider.of<ThemeProvider>(context);
     
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.white,
         elevation: 1,
         title: Row(
           children: [
@@ -103,7 +112,11 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
               onPressed: currentGlobalChapter > 1 ? _goToPreviousChapter : null,
               icon: Icon(
                 Icons.chevron_left,
-                color: currentGlobalChapter > 1 ? Colors.blue.shade700 : Colors.grey,
+                color: currentGlobalChapter > 1 
+                    ? Theme.of(context).primaryColor
+                    : (Theme.of(context).brightness == Brightness.dark
+                        ? Colors.grey.shade700
+                        : Colors.grey),
                 size: 28,
               ),
             ),
@@ -116,9 +129,12 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   margin: const EdgeInsets.symmetric(horizontal: 8),
                   decoration: BoxDecoration(
-                    border: Border.all(color: Colors.blue.shade300, width: 1.5),
+                    border: Border.all(
+                      color: Theme.of(context).primaryColor.withOpacity(0.5),
+                      width: 1.5,
+                    ),
                     borderRadius: BorderRadius.circular(8),
-                    color: Colors.blue.shade50,
+                    color: Theme.of(context).primaryColor.withOpacity(0.1),
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -128,14 +144,15 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Colors.blue.shade800,
+                          color: Theme.of(context).primaryColor,
                         ),
                       ),
                       Text(
                         chapterInfo['arabicName'],
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.blue.shade600,
+                          color: themeProvider.secondaryTextColor,
+                          fontFamily: 'Amiri',
                         ),
                         textDirection: TextDirection.rtl,
                         overflow: TextOverflow.ellipsis,
@@ -151,7 +168,11 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
               onPressed: currentGlobalChapter < totalChapters ? _goToNextChapter : null,
               icon: Icon(
                 Icons.chevron_right,
-                color: currentGlobalChapter < totalChapters ? Colors.blue.shade700 : Colors.grey,
+                color: currentGlobalChapter < totalChapters 
+                    ? Theme.of(context).primaryColor
+                    : (Theme.of(context).brightness == Brightness.dark
+                        ? Colors.grey.shade700
+                        : Colors.grey),
                 size: 28,
               ),
             ),
@@ -169,7 +190,7 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
                 ),
               );
             },
-            icon: Icon(Icons.search, color: Colors.blue.shade700),
+            icon: Icon(Icons.search, color: Theme.of(context).primaryColor),
           ),
           IconButton(
             onPressed: () {
@@ -183,11 +204,23 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
                         _fontSize = newSize;
                       });
                     },
+                    currentFontFamily: _fontFamily,
+                    onFontFamilyChanged: (newFont) {
+                      setState(() {
+                        _fontFamily = newFont;
+                      });
+                    },
+                    removeDiacritics: _removeDiacritics,
+                    onRemoveDiacriticsChanged: (value) {
+                      setState(() {
+                        _removeDiacritics = value;
+                      });
+                    },
                   ),
                 ),
               );
             },
-            icon: Icon(Icons.settings, color: Colors.blue.shade700),
+            icon: Icon(Icons.settings, color: Theme.of(context).primaryColor),
           ),
         ],
       ),
@@ -204,13 +237,15 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
           final info = BibleData.getChapterInfo(globalChapter);
           
           return ChapterContentPage(
-            key: ValueKey(globalChapter), // Important for proper widget management
+            key: ValueKey('$globalChapter-$_fontFamily-$_removeDiacritics'),
             bookName: info['bookName'],
             shortName: info['shortName'],
-            arabicName: info['arabicName'], // Pass Arabic name
+            arabicName: info['arabicName'],
             chapterNumber: info['chapterInBook'],
             bookIndex: info['bookIndex'],
-            fontSize: _fontSize, // Pass font size to chapter
+            fontSize: _fontSize,
+            fontFamily: _fontFamily,
+            removeDiacritics: _removeDiacritics,
           );
         },
       ),

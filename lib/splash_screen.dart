@@ -13,11 +13,11 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _navigateToMainApp();
+    _navigateToHome();
   }
 
-  _navigateToMainApp() async {
-    await Future.delayed(const Duration(seconds: 3));
+  Future<void> _navigateToHome() async {
+    await Future.delayed(const Duration(seconds: 2));
     if (mounted) {
       Navigator.pushReplacement(
         context,
@@ -29,52 +29,51 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(30),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
-                    blurRadius: 15,
-                    spreadRadius: 5,
-                  ),
-                ],
-              ),
-              child: const Icon(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.blue.shade700,
+              Colors.blue.shade900,
+            ],
+          ),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
                 Icons.menu_book,
-                size: 80,
-                color: Color(0xFF1A1A2E),
-              ),
-            ),
-            const SizedBox(height: 30),
-            const Text(
-              'الكتاب المقدس', // Changed to Arabic
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
+                size: 100,
                 color: Colors.white,
               ),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'ترجمة عربية باسم يهوه', // Added subtitle
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.white70,
+              const SizedBox(height: 24),
+              const Text(
+                'الكتاب المقدس',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontFamily: 'Amiri',
+                ),
+                textDirection: TextDirection.rtl,
               ),
-            ),
-            const SizedBox(height: 50),
-            const CircularProgressIndicator(
-              color: Colors.white,
-            ),
-          ],
+              const SizedBox(height: 8),
+              const Text(
+                'Holy Bible',
+                style: TextStyle(
+                  fontSize: 24,
+                  color: Colors.white70,
+                ),
+              ),
+              const SizedBox(height: 48),
+              const CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ],
+          ),
         ),
       ),
     );

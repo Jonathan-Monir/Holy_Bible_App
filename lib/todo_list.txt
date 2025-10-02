@@ -1,14 +1,15 @@
 vico tasks:
 1. be able to put txt files in android
 2. more search option (search in some books)
-3. tashkeel removal
+# 3. tashkeel removal
 4. themes wtih dark mode
 5. word colors
 6. should select multiple verses
+# 7. different fonts
 
 
 
 technical tasks
 1. faster search
 2. bad settings ui
-3. search should go to exact verse
+# 3. search should go to exact verse

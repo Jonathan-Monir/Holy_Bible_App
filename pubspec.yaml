@@ -1,4 +1,3 @@
-# pubspec.yaml
 name: holy_bible_app
 description: A Bible reading app with Arabic text support
 version: 1.0.0+1
@@ -11,12 +10,13 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
-  google_fonts: ^6.1.0  # Add this line
+  google_fonts: ^6.1.0
   docx_to_text: 1.0.1
   share_plus: ^7.2.1
   shared_preferences: ^2.2.2
   path_provider: ^2.1.1
   permission_handler: ^11.0.1
+  provider: ^6.1.1
   cupertino_icons: ^1.0.2
 
 dev_dependencies:
@@ -37,6 +37,5 @@ flutter:
           weight: 700
           style: italic
   uses-material-design: true
-
   assets:
     - assets/bible_docs/

@@ -1,6 +1,5 @@
 // lib/search_screen.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'; // ADD THIS IMPORT
 import 'bible_data.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -19,16 +18,15 @@ class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController _searchController = TextEditingController();
   List<SearchResult> _searchResults = [];
   bool _isSearching = false;
-
+  
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
   }
 
-  void _performSearch() async {
-    final query = _searchController.text.trim();
-    if (query.isEmpty) {
+  Future<void> _performSearch(String query) async {
+    if (query.trim().isEmpty) {
       setState(() {
         _searchResults = [];
       });
@@ -41,104 +39,32 @@ class _SearchScreenState extends State<SearchScreen> {
     });
 
     List<SearchResult> results = [];
-
-    try {
-      // Search through all books - FIX: Don't skip based on file existence check
-      for (int bookIndex = 0; bookIndex < BibleData.books.length; bookIndex++) {
-        final book = BibleData.books[bookIndex];
-        final bookName = book['name'];
-        final totalChapters = book['chapters'] as int;
-
+    
+    for (int bookIndex = 0; bookIndex < BibleData.books.length; bookIndex++) {
+      final book = BibleData.books[bookIndex];
+      final totalChapters = book['chapters'] as int;
+      
+      for (int chapter = 1; chapter <= totalChapters; chapter++) {
         try {
-          // FIX: Try to load at least the first chapter to see if book is available
-          bool bookAvailable = true;
-          String testContent = "";
+          final content = await BibleData.getChapterContent(bookIndex, chapter);
           
-          try {
-            testContent = await BibleData.getChapterContent(bookIndex, 1);
-            // Check if this is an error/placeholder message
-            if (testContent.contains('غير متوفر') || 
-                testContent.contains('not available') ||
-                testContent.contains('سيتم إضافه') ||
-                testContent.contains('will be added') ||
-                testContent.length < 50) {
-              bookAvailable = false;
-            }
-          } catch (e) {
-            bookAvailable = false;
-          }
-
-          if (!bookAvailable) {
-            print('Skipping book $bookName - content not available');
-            continue;
-          }
-
-          for (int chapter = 1; chapter <= totalChapters; chapter++) {
-            if (!mounted) return;
-            
-            final content = await BibleData.getChapterContent(bookIndex, chapter);
-            
-            // Check if this chapter has real content (not placeholder)
-            if (content.contains('غير متوفر') || 
-                content.contains('not available') ||
-                content.contains('غير موجود') ||
-                content.contains('will be added') ||
-                content.contains('سيتم إضافه') ||
-                content.contains('Error loading') ||
-                content.contains('empty file') ||
-                content.contains('An empty file') ||
-                content.length < 50) {
-              break; // Stop searching this book if chapter is unavailable
-            }
-
-            if (BibleData.searchMatch(content, query)) {
-              final lines = content.split('\n');
-              for (int lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-                final line = lines[lineIndex];
-                if (line.trim().isEmpty) continue;
-                
-                if (BibleData.searchMatch(line, query)) {
-                  final verseMatch = RegExp(r'^(\d+)').firstMatch(line.trim());
-                  final verseNumber = verseMatch?.group(1) ?? '';
-                  
-                  String cleanLine = line.trim();
-                  if (cleanLine.isNotEmpty && cleanLine.length > 1) {
-                    results.add(SearchResult(
-                      bookName: bookName,
-                      bookIndex: bookIndex,
-                      chapterNumber: chapter,
-                      verseNumber: verseNumber,
-                      text: cleanLine,
-                      query: query,
-                    ));
-                  }
-                  
-                  if (!mounted) return;
-                  if (results.length >= 100) break;
-                }
+          if (BibleData.searchMatch(content, query)) {
+            final lines = content.split('\n');
+            for (String line in lines) {
+              if (BibleData.searchMatch(line, query)) {
+                results.add(SearchResult(
+                  bookIndex: bookIndex,
+                  bookName: book['name'],
+                  arabicName: book['arabicName'],
+                  chapterNumber: chapter,
+                  verseText: line.trim(),
+                ));
               }
             }
-            
-            if (!mounted) return;
-            if (results.length >= 100) break;
           }
         } catch (e) {
-          print('Error searching in book $bookName: $e');
-          continue;
+          print('Error searching in ${book['name']} $chapter: $e');
         }
-        
-        if (!mounted) return;
-        if (results.length >= 100) break;
-      }
-    } catch (e) {
-      print('Search error: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Search error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
       }
     }
 
@@ -150,56 +76,12 @@ class _SearchScreenState extends State<SearchScreen> {
     }
   }
 
-
-  int _getGlobalChapter(int bookIndex, int chapterNumber) {
+  int _getGlobalChapter(int bookIndex, int chapterInBook) {
     int globalChapter = 1;
     for (int i = 0; i < bookIndex; i++) {
       globalChapter += BibleData.books[i]['chapters'] as int;
     }
-    return globalChapter + chapterNumber - 1;
-  }
-
-  void _navigateToChapter(SearchResult result) {
-    try {
-      final globalChapter = _getGlobalChapter(result.bookIndex, result.chapterNumber);
-      
-      // Validate the global chapter number
-      final totalChapters = BibleData.getTotalChapters();
-      if (globalChapter < 1 || globalChapter > totalChapters) {
-        print('Invalid global chapter: $globalChapter');
-        _showErrorDialog('Invalid chapter selection');
-        return;
-      }
-      
-      // Call the navigation function
-      widget.onChapterSelected(globalChapter);
-      
-      // Pop the search screen safely
-      if (mounted && Navigator.canPop(context)) {
-        Navigator.pop(context);
-      }
-    } catch (e) {
-      print('Navigation error: $e');
-      _showErrorDialog('Error navigating to chapter');
-    }
-  }
-
-  void _showErrorDialog(String message) {
-    if (!mounted) return;
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Error'),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
+    return globalChapter + chapterInBook - 1;
   }
 
   @override
@@ -211,187 +93,146 @@ class _SearchScreenState extends State<SearchScreen> {
       ),
       body: Column(
         children: [
-          // Search input
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                Row(
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search in Bible...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {
+                            _searchResults = [];
+                          });
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onChanged: (value) {
+                setState(() {});
+              },
+              onSubmitted: _performSearch,
+            ),
+          ),
+          if (_isSearching)
+            const Expanded(
+              child: Center(
+                child: CircularProgressIndicator(),
+              ),
+            )
+          else if (_searchResults.isEmpty && _searchController.text.isNotEmpty)
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _searchController,
-                        decoration: const InputDecoration(
-                          hintText: 'Search for words or verses...',
-                          prefixIcon: Icon(Icons.search),
-                          border: OutlineInputBorder(),
-                        ),
-                        onSubmitted: (_) => _performSearch(),
-                        enabled: !_isSearching,
+                    Icon(Icons.search_off, size: 64, color: Colors.grey.shade400),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No results found',
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: Colors.grey.shade600,
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton(
-                      onPressed: _isSearching ? null : _performSearch,
-                      child: _isSearching 
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Search'),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-              ],
-            ),
-          ),
-
-          // Search results
-          Expanded(
-            child: _isSearching
-                ? const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 16),
-                        Text('Searching...'),
-                      ],
-                    ),
-                  )
-                : _searchResults.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.search,
-                              size: 64,
-                              color: Colors.grey.shade400,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              _searchController.text.isEmpty
-                                  ? 'Enter search terms above'
-                                  : 'No results found',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                            if (_searchController.text.isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: Text(
-                                  'Try searching without diacritics (تشكيل)',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey.shade500,
-                                  ),
-                                ),
-                              ),
-                          ],
+              ),
+            )
+          else if (_searchResults.isNotEmpty)
+            Expanded(
+              child: ListView.builder(
+                itemCount: _searchResults.length,
+                itemBuilder: (context, index) {
+                  final result = _searchResults[index];
+                  return Card(
+                    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    child: ListTile(
+                      title: Text(
+                        '${result.bookName} ${result.chapterNumber}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
                         ),
-                      )
-                    : Column(
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Results count
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            child: Row(
-                              children: [
-                                Text(
-                                  'Found ${_searchResults.length} result${_searchResults.length != 1 ? 's' : ''}',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.grey.shade700,
-                                  ),
-                                ),
-                                if (_searchResults.length >= 100)
-                                  Text(
-                                    ' (showing first 100)',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey.shade500,
-                                    ),
-                                  ),
-                              ],
-                            ),
+                          Text(
+                            result.arabicName,
+                            style: const TextStyle(fontSize: 12),
+                            textDirection: TextDirection.rtl,
                           ),
-                          
-                          // Results list
-                          Expanded(
-                            child: ListView.builder(
-                              itemCount: _searchResults.length,
-                              itemBuilder: (context, index) {
-                                final result = _searchResults[index];
-                                return Card(
-                                  margin: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 4,
-                                  ),
-                                  child: ListTile(
-                                    title: Text(
-                                      '${result.bookName} ${result.chapterNumber}${result.verseNumber.isNotEmpty ? ':${result.verseNumber}' : ''}',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                    subtitle: Container(
-                                      alignment: result.text.contains(RegExp(r'[\u0600-\u06FF]'))
-                                          ? Alignment.centerRight
-                                          : Alignment.centerLeft,
-                                      child: Text(
-                                        _highlightSearchTerm(result.text, result.query),
-                                        textDirection: result.text.contains(RegExp(r'[\u0600-\u06FF]'))
-                                            ? TextDirection.rtl
-                                            : TextDirection.ltr,
-                                        textAlign: result.text.contains(RegExp(r'[\u0600-\u06FF]'))
-                                            ? TextAlign.right
-                                            : TextAlign.left,
-                                        maxLines: 3,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    onTap: () => _navigateToChapter(result),
-                                  ),
-                                );
-                              },
+                          const SizedBox(height: 4),
+                          Text(
+                            result.verseText,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              height: 1.4,
                             ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            textDirection: TextDirection.rtl,
                           ),
                         ],
                       ),
-          ),
+                      onTap: () {
+                        final globalChapter = _getGlobalChapter(
+                          result.bookIndex,
+                          result.chapterNumber,
+                        );
+                        widget.onChapterSelected(globalChapter);
+                        Navigator.pop(context);
+                      },
+                    ),
+                  );
+                },
+              ),
+            )
+          else
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.search, size: 64, color: Colors.grey.shade400),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Enter search term',
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
-
-  String _highlightSearchTerm(String text, String query) {
-    // For now, just return the text as-is
-    // In a more advanced version, you could wrap the search term with special characters
-    return text;
-  }
 }
 
 class SearchResult {
-  final String bookName;
   final int bookIndex;
+  final String bookName;
+  final String arabicName;
   final int chapterNumber;
-  final String verseNumber;
-  final String text;
-  final String query;
+  final String verseText;
 
   SearchResult({
-    required this.bookName,
     required this.bookIndex,
+    required this.bookName,
+    required this.arabicName,
     required this.chapterNumber,
-    required this.verseNumber,
-    required this.text,
-    required this.query,
+    required this.verseText,
   });
 }

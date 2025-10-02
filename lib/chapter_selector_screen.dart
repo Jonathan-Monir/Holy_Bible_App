@@ -1,7 +1,9 @@
 // lib/chapter_selector_screen.dart
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'bible_data.dart';
 import 'book_chapter_selector.dart';
+import 'theme_provider.dart';
 
 class ChapterSelectorScreen extends StatefulWidget {
   final int currentChapter;
@@ -21,7 +23,6 @@ class _ChapterSelectorScreenState extends State<ChapterSelectorScreen>
     with TickerProviderStateMixin {
   late TabController _tabController;
   
-  // Old Testament books (Genesis to Malachi)
   static const int oldTestamentCount = 39;
   
   @override
@@ -29,10 +30,9 @@ class _ChapterSelectorScreenState extends State<ChapterSelectorScreen>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     
-    // Set initial tab based on current chapter
     final currentBookIndex = BibleData.getChapterInfo(widget.currentChapter)['bookIndex'];
     if (currentBookIndex >= oldTestamentCount) {
-      _tabController.index = 1; // New Testament
+      _tabController.index = 1;
     }
   }
 
@@ -51,73 +51,76 @@ class _ChapterSelectorScreenState extends State<ChapterSelectorScreen>
   }
 
   Widget _buildBooksList(List<Map<String, dynamic>> books, int startIndex) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    
     return ListView.builder(
       itemCount: books.length,
       itemBuilder: (context, index) {
         final book = books[index];
         final bookIndex = startIndex + index;
-        final bookName = book['name'];
         final arabicName = book['arabicName'];
         final chapters = book['chapters'] as int;
         
-        // Check if this is the current book
         final currentBookIndex = BibleData.getChapterInfo(widget.currentChapter)['bookIndex'];
         final isCurrentBook = bookIndex == currentBookIndex;
         
         return Card(
           margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           elevation: isCurrentBook ? 4 : 1,
-          color: isCurrentBook ? Colors.blue.shade50 : Colors.white,
+          color: isCurrentBook 
+              ? Theme.of(context).primaryColor.withOpacity(0.15) 
+              : Theme.of(context).cardColor,
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             leading: Container(
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: isCurrentBook ? Colors.blue : Colors.grey.shade200,
+                color: isCurrentBook 
+                    ? Theme.of(context).primaryColor 
+                    : (Theme.of(context).brightness == Brightness.dark
+                        ? Colors.grey.shade700
+                        : Colors.grey.shade200),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Center(
                 child: Icon(
                   Icons.menu_book,
-                  color: isCurrentBook ? Colors.white : Colors.grey.shade600,
+                  color: isCurrentBook 
+                      ? Colors.white 
+                      : (Theme.of(context).brightness == Brightness.dark
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade600),
                   size: 20,
                 ),
               ),
             ),
             title: Text(
-              bookName,
+              arabicName,
               style: TextStyle(
                 fontWeight: isCurrentBook ? FontWeight.bold : FontWeight.w500,
-                color: isCurrentBook ? Colors.blue.shade800 : Colors.black87,
+                color: isCurrentBook 
+                    ? Theme.of(context).primaryColor 
+                    : themeProvider.primaryTextColor,
                 fontSize: 16,
+                fontFamily: 'Amiri',
+              ),
+              textDirection: TextDirection.rtl,
+            ),
+            subtitle: Text(
+              '$chapters ${chapters == 1 ? 'chapter' : 'chapters'}',
+              style: TextStyle(
+                fontSize: 12,
+                color: themeProvider.secondaryTextColor,
               ),
             ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  arabicName,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade600,
-                    fontWeight: FontWeight.w400,
-                  ),
-                  textDirection: TextDirection.rtl,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '$chapters ${chapters == 1 ? 'chapter' : 'chapters'}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade500,
-                  ),
-                ),
-              ],
-            ),
             trailing: Icon(
-              Icons.chevron_right,
-              color: isCurrentBook ? Colors.blue : Colors.grey.shade400,
+              Icons.chevron_left,
+              color: isCurrentBook 
+                  ? Theme.of(context).primaryColor 
+                  : (Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey.shade600
+                      : Colors.grey.shade400),
             ),
             onTap: () {
               Navigator.push(
@@ -125,7 +128,7 @@ class _ChapterSelectorScreenState extends State<ChapterSelectorScreen>
                 MaterialPageRoute(
                   builder: (context) => BookChapterSelector(
                     bookIndex: bookIndex,
-                    bookName: bookName,
+                    bookName: arabicName,
                     totalChapters: chapters,
                     currentChapter: widget.currentChapter,
                     onChapterSelected: widget.onChapterSelected,
@@ -141,10 +144,11 @@ class _ChapterSelectorScreenState extends State<ChapterSelectorScreen>
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text('Select Book'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         bottom: TabBar(
           controller: _tabController,
           tabs: [
@@ -153,7 +157,7 @@ class _ChapterSelectorScreenState extends State<ChapterSelectorScreen>
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.library_books, size: 18),
+                  const Icon(Icons.library_books, size: 18),
                   const SizedBox(width: 6),
                   Flexible(
                     child: Column(
@@ -180,7 +184,7 @@ class _ChapterSelectorScreenState extends State<ChapterSelectorScreen>
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.auto_stories, size: 18),
+                  const Icon(Icons.auto_stories, size: 18),
                   const SizedBox(width: 6),
                   Flexible(
                     child: Column(
@@ -203,9 +207,9 @@ class _ChapterSelectorScreenState extends State<ChapterSelectorScreen>
               ),
             ),
           ],
-          labelColor: Colors.blue.shade800,
-          unselectedLabelColor: Colors.grey.shade600,
-          indicatorColor: Colors.blue,
+          labelColor: Theme.of(context).primaryColor,
+          unselectedLabelColor: themeProvider.secondaryTextColor,
+          indicatorColor: Theme.of(context).primaryColor,
           indicatorWeight: 3,
         ),
       ),
@@ -218,14 +222,18 @@ class _ChapterSelectorScreenState extends State<ChapterSelectorScreen>
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                color: Colors.grey.shade50,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.grey.shade900
+                    : Colors.grey.shade50,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
                       Icons.library_books,
                       size: 28,
-                      color: Colors.brown.shade600,
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.brown.shade300
+                          : Colors.brown.shade600,
                     ),
                     const SizedBox(height: 6),
                     Text(
@@ -233,14 +241,19 @@ class _ChapterSelectorScreenState extends State<ChapterSelectorScreen>
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.brown.shade800,
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.brown.shade300
+                            : Colors.brown.shade800,
                       ),
                     ),
                     Text(
                       'العهد القديم',
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.brown.shade600,
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.brown.shade300
+                            : Colors.brown.shade600,
+                        fontFamily: 'Amiri',
                       ),
                       textDirection: TextDirection.rtl,
                     ),
@@ -248,7 +261,7 @@ class _ChapterSelectorScreenState extends State<ChapterSelectorScreen>
                       'Genesis to Malachi',
                       style: TextStyle(
                         fontSize: 11,
-                        color: Colors.grey.shade600,
+                        color: themeProvider.secondaryTextColor,
                       ),
                     ),
                   ],
@@ -266,14 +279,18 @@ class _ChapterSelectorScreenState extends State<ChapterSelectorScreen>
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                color: Colors.grey.shade50,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.grey.shade900
+                    : Colors.grey.shade50,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
                       Icons.auto_stories,
                       size: 28,
-                      color: Colors.indigo.shade600,
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.indigo.shade300
+                          : Colors.indigo.shade600,
                     ),
                     const SizedBox(height: 6),
                     Text(
@@ -281,14 +298,19 @@ class _ChapterSelectorScreenState extends State<ChapterSelectorScreen>
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.indigo.shade800,
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.indigo.shade300
+                            : Colors.indigo.shade800,
                       ),
                     ),
                     Text(
                       'العهد الجديد',
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.indigo.shade600,
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.indigo.shade300
+                            : Colors.indigo.shade600,
+                        fontFamily: 'Amiri',
                       ),
                       textDirection: TextDirection.rtl,
                     ),
@@ -296,7 +318,7 @@ class _ChapterSelectorScreenState extends State<ChapterSelectorScreen>
                       'Matthew to Revelation',
                       style: TextStyle(
                         fontSize: 11,
-                        color: Colors.grey.shade600,
+                        color: themeProvider.secondaryTextColor,
                       ),
                     ),
                   ],
