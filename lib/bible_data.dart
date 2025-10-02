@@ -77,6 +77,7 @@ class BibleData {
 
   // Cache for loaded content
   static Map<String, Map<int, String>> _bookCache = {};
+  static Map<String, Map<int, String>> _footnotesCache = {};
 
   static int getTotalChapters() {
     int total = 0;
@@ -108,8 +109,6 @@ class BibleData {
     }
     return {};
   }
-
-  // Get the Bible documents directory path
 
   // Check storage permissions
   static Future<bool> _checkStoragePermissions() async {
@@ -315,39 +314,65 @@ class BibleData {
     return 'This book isn\'t available yet';
   }
 
-  static Map<int, String> _parseDocumentContent(String content) {
+  // lib/bible_data.dart - Updated _parseDocumentContent
+  static Map<int, String> _parseDocumentContent(String content, {bool formatVerses = true}) {
     Map<int, String> chapters = {};
-    
-    // Split by Arabic chapter headings
-    List<String> parts = content.split(RegExp(r'الأصحَاحُ', multiLine: true));
+    // Split by either الإصحَاحُ or الأصحَاحُ
+    List<String> parts = content.split(RegExp(r'ال[إأ]صحَاحُ', multiLine: true));
     
     if (parts.length > 1) {
-      // First part (before first chapter) might contain book title
       for (int i = 1; i < parts.length; i++) {
-        String chapterContent = 'الأصحَاحُ${parts[i]}';
-        // Format verses - put each verse on new line
-        chapterContent = _formatVerses(chapterContent);
+        String chapterContent = 'الإصحَاحُ${parts[i]}';
+        if (formatVerses) {
+          chapterContent = _formatVerses(chapterContent);
+        }
         chapters[i] = chapterContent.trim();
       }
     } else {
-      // If no chapter divisions found, try different approach
-      // Look for patterns like "الأول" "الثاني" etc.
-      if (content.contains('الأول')) {
-        List<String> chapterParts = content.split(RegExp(r'الأول|الثاني|الثالث|الرابع|الخامس', multiLine: true));
-        for (int i = 0; i < chapterParts.length; i++) {
-          if (chapterParts[i].trim().isNotEmpty) {
-            String formattedContent = _formatVerses(chapterParts[i].trim());
-            chapters[i + 1] = formattedContent;
-          }
-        }
-      } else {
-        // Put all content in chapter 1 and format verses
-        String formattedContent = _formatVerses(content.trim());
-        chapters[1] = formattedContent;
+      // Fallback for single-chapter or no split
+      String formatted = formatVerses ? _formatVerses(content.trim()) : content.trim();
+      chapters[1] = formatted;
+    }
+    return chapters;
+  }
+
+  // lib/bible_data.dart - Updated getChapterFootnotes
+  static Future<String> getChapterFootnotes(int bookIndex, int chapterNumber) async {
+    final book = books[bookIndex];
+    final fileName = book['fileName'].replaceAll('.txt', '_footnotes.txt');
+    final bookName = book['name'];
+    final arabicName = book['arabicName'];
+
+    if (_footnotesCache.containsKey(fileName) && _footnotesCache[fileName]!.containsKey(chapterNumber)) {
+      return _footnotesCache[fileName]![chapterNumber]!;
+    }
+
+    String? content;
+    bool foundContent = false;
+
+    if (!kIsWeb) {
+      final bibleDocsPath = await getBibleDocsPath();
+      final externalFile = File('$bibleDocsPath/$fileName');
+      if (await externalFile.exists()) {
+        content = await externalFile.readAsString();
+        foundContent = true;
       }
     }
-    
-    return chapters;
+
+    if (!foundContent) {
+      try {
+        content = await rootBundle.loadString('assets/bible_docs/$fileName');
+        foundContent = true;
+      } catch (e) {
+        return '';
+      }
+    }
+
+    final chapters = _parseDocumentContent(content!, formatVerses: false);
+
+    _footnotesCache[fileName] = chapters;
+
+    return chapters[chapterNumber] ?? '';
   }
 
   // Helper method to format verses - each verse on new line

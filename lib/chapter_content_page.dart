@@ -37,6 +37,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   Map<int, int> verseOffsets = {};
   Map<String, Map<int, List<TextRange>>> highlightedRanges = <String, Map<int, List<TextRange>>>{};
   Map<String, Map<int, List<TextRange>>> underlinedRanges = <String, Map<int, List<TextRange>>>{};
+  String footnotes = '';
 
   @override
   void initState() {
@@ -159,11 +160,13 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   Future<void> _loadChapterContent() async {
     try {
       final content = await BibleData.getChapterContent(widget.bookIndex, widget.chapterNumber);
+      final fn = await BibleData.getChapterFootnotes(widget.bookIndex, widget.chapterNumber);
       if (mounted) {
         setState(() {
           chapterContent = content;
           verses = _parseVersesToList(content);
           verseOffsets = _computeVerseOffsets(verses);
+          footnotes = fn;
           isLoading = false;
         });
       }
@@ -171,6 +174,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       if (mounted) {
         setState(() {
           chapterContent = 'Error loading chapter: $e';
+          footnotes = '';
           isLoading = false;
         });
       }
@@ -212,9 +216,8 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         currentOffset += verse.text.length + 2; // \n\n for title
         continue;
       }
-      currentOffset += '${verse.number} '.length;
-      offsets[verse.number] = currentOffset;
-      currentOffset += verse.text.length + 1; // \n
+      offsets[verse.number] = currentOffset + verse.number.toString().length + 1; // number + space
+      currentOffset += verse.number.toString().length + verse.text.length + 2; // space + text + \n
     }
     return offsets;
   }
@@ -457,6 +460,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   @override
   Widget build(BuildContext context) {
     bool isArabic = chapterContent.contains(RegExp(r'[\u0600-\u06FF]'));
+    List<String> noteList = footnotes.split('\n\n').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
 
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -479,7 +483,59 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
                 : SingleChildScrollView(
                     child: Column(
                       crossAxisAlignment: isArabic ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                      children: verses.map((verse) => _buildVerseWidget(verse, isArabic)).toList(),
+                      children: [
+                        ...verses.map((verse) => _buildVerseWidget(verse, isArabic)).toList(),
+                        if (footnotes.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 24.0),
+                            child: Column(
+                              crossAxisAlignment: isArabic ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                              children: [
+                                Center(
+                                  child: Container(
+                                    width: 100,
+                                    height: 1,
+                                    color: Colors.grey.shade400,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                ...List.generate(noteList.length, (index) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 8.0),
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+                                      children: [
+                                        Text(
+                                          '${index + 1}. ',
+                                          style: TextStyle(
+                                            fontSize: widget.fontSize * 0.8,
+                                            color: Colors.grey.shade700,
+                                            height: 1.6,
+                                            fontFamily: isArabic ? 'Amiri' : 'serif',
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: SelectableText(
+                                            noteList[index],
+                                            style: TextStyle(
+                                              fontSize: widget.fontSize * 0.8,
+                                              color: Colors.grey.shade700,
+                                              height: 1.6,
+                                              fontFamily: isArabic ? 'Amiri' : 'serif',
+                                            ),
+                                            textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+                                            textAlign: isArabic ? TextAlign.right : TextAlign.left,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }),
+                              ],
+                            ),
+                          ),
+                      ],
                     ),
                   ),
           ),
