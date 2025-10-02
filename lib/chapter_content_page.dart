@@ -1,4 +1,7 @@
 // lib/chapter_content_page.dart
+
+import 'package:provider/provider.dart';
+import 'theme_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
@@ -7,8 +10,6 @@ import 'dart:convert';
 import 'bible_data.dart';
 import 'dart:math';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
-import 'theme_provider.dart';
 
 class ChapterContentPage extends StatefulWidget {
   final String bookName;
@@ -48,7 +49,6 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   @override
   void initState() {
     super.initState();
-    print('DEBUG: initState called for book ${widget.bookName} chapter ${widget.chapterNumber}');
     _loadSavedData();
   }
 
@@ -94,40 +94,11 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         }
       }
       
-      final oldHighlighted = prefs.getString('highlighted_verses') ?? '{}';
-      if (oldHighlighted != '{}') {
-        final oldMap = json.decode(oldHighlighted) as Map<String, dynamic>;
-        for (String key in oldMap.keys) {
-          if (oldMap[key] is List) {
-            final oldVerses = Set<int>.from(oldMap[key].cast<int>());
-            if (oldVerses.isNotEmpty) {
-              await _loadChapterContent();
-              _convertOldHighlights(key, oldVerses);
-            }
-          }
-        }
-        await prefs.remove('highlighted_verses');
-      }
-      
       await _loadChapterContent();
     } catch (e) {
       print('Error loading saved data: $e');
       await _loadChapterContent();
     }
-  }
-
-  void _convertOldHighlights(String key, Set<int> oldVerses) {
-    if (key != _chapterKey) return;
-    if (!highlightedRanges.containsKey(key)) highlightedRanges[key] = {};
-    for (int verseNum in oldVerses) {
-      final verse = verses.firstWhere((v) => v.number == verseNum, orElse: () => VerseData(number: 0, text: ''));
-      if (verse.number != 0) {
-        final fullRange = TextRange(start: 0, end: verse.text.length);
-        if (!highlightedRanges[key]!.containsKey(verseNum)) highlightedRanges[key]![verseNum] = [];
-        highlightedRanges[key]![verseNum]!.add(fullRange);
-      }
-    }
-    _saveHighlightedRanges();
   }
 
   Future<void> _saveHighlightedRanges() async {
@@ -162,23 +133,28 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     }
   }
 
-  // NEW: Method to clear all highlights for current chapter
   Future<void> _clearAllHighlights() async {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Clear All Highlights'),
-        content: const Text('Are you sure you want to remove all highlights and underlines from this chapter?'),
+        backgroundColor: Theme.of(context).cardColor,
+        title: Text(
+          'Clear All Highlights',
+          style: TextStyle(color: themeProvider.primaryTextColor),
+        ),
+        content: Text(
+          'Are you sure you want to remove all highlights and underlines from this chapter?',
+          style: TextStyle(color: themeProvider.primaryTextColor),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text('Cancel', style: TextStyle(color: themeProvider.secondaryTextColor)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.red,
-            ),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Clear All'),
           ),
         ],
@@ -338,6 +314,8 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   }
 
   Widget _buildVerseWidget(VerseData verse, bool isArabic) {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    
     if (verse.number == 0) {
       String displayText = widget.removeDiacritics ? BibleData.removeTashkeel(verse.text) : verse.text;
       
@@ -349,7 +327,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
             displayText,
             style: _getFontStyle(isArabic).copyWith(
               fontWeight: FontWeight.bold,
-              color: Colors.black87,
+              color: themeProvider.primaryTextColor,
               fontSize: widget.fontSize * 1.1,
             ),
             textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
@@ -375,7 +353,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
               style: TextStyle(
                 fontSize: widget.fontSize * 0.8,
                 fontWeight: FontWeight.bold,
-                color: Colors.blue.shade700,
+                color: Theme.of(context).primaryColor,
                 fontFamily: isArabic ? widget.fontFamily : 'serif',
               ),
               textDirection: TextDirection.ltr,
@@ -427,7 +405,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
           fontWeight: FontWeight.normal,
           height: 1.8,
           color: themeProvider.primaryTextColor,
-          backgroundColor: isHighlighted ? themeProvider.highlightColor : null,
+          backgroundColor: isHighlighted ? Colors.yellow : null,
           decoration: isUnderlined ? TextDecoration.underline : null,
           decorationColor: Theme.of(context).primaryColor,
           decorationThickness: 2,
@@ -496,7 +474,6 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     int adjustedEnd = max(0, selection.end - 1);
     TextRange tr = TextRange(start: adjustedStart, end: adjustedEnd);
 
-    print('DEBUG: Handling highlight for verse $verseNumber, selection start: ${selection.start}, end: ${selection.end}, adjusted: $adjustedStart to $adjustedEnd');
     setState(() {
       if (!highlightedRanges.containsKey(_chapterKey)) highlightedRanges[_chapterKey] = {};
       if (!highlightedRanges[_chapterKey]!.containsKey(verseNumber)) highlightedRanges[_chapterKey]![verseNumber] = [];
@@ -524,10 +501,22 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     bool isArabic = chapterContent.contains(RegExp(r'[\u0600-\u06FF]'));
-    List<String> noteList = footnotes.split('\n\n').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    
+    // Split footnotes into individual lines
+    List<String> rawNotes = footnotes.split('\n').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
 
-    // Check if there are any highlights in this chapter
+    String? chapterSubtitle;
+    List<String> noteList = rawNotes;
+    if (rawNotes.isNotEmpty) {
+      String firstLineClean = BibleData.removeTashkeel(rawNotes[0]);
+      if (RegExp(r'^الإصحاح \S+$').hasMatch(firstLineClean)) {
+        chapterSubtitle = rawNotes[0];
+        noteList = rawNotes.skip(1).toList();
+      }
+    }
+
     bool hasHighlights = (highlightedRanges[_chapterKey]?.isNotEmpty ?? false) || 
                         (underlinedRanges[_chapterKey]?.isNotEmpty ?? false);
 
@@ -536,16 +525,16 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       child: Column(
         crossAxisAlignment: isArabic ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          // Chapter title with clear highlights button
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(
                 child: Text(
                   '${widget.bookName} ${widget.chapterNumber}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
+                    color: themeProvider.primaryTextColor,
                   ),
                   textAlign: isArabic ? TextAlign.right : TextAlign.left,
                   textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
@@ -570,7 +559,9 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
                       crossAxisAlignment: isArabic ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                       children: [
                         ...verses.map((verse) => _buildVerseWidget(verse, isArabic)).toList(),
-                        if (footnotes.isNotEmpty)
+                        
+                        // UPDATED FOOTNOTES SECTION WITH NUMBERING
+                        if (noteList.isNotEmpty || chapterSubtitle != null)
                           Padding(
                             padding: const EdgeInsets.only(top: 24.0),
                             child: Column(
@@ -583,32 +574,69 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
                                     color: Colors.grey.shade400,
                                   ),
                                 ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Footnotes',
+                                  style: TextStyle(
+                                    fontSize: widget.fontSize * 0.9,
+                                    fontWeight: FontWeight.bold,
+                                    color: themeProvider.primaryTextColor,
+                                  ),
+                                ),
                                 const SizedBox(height: 8),
+                                if (chapterSubtitle != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 12.0),
+                                    child: Align(
+                                      alignment: isArabic ? Alignment.centerRight : Alignment.centerLeft,
+                                      child: Text(
+                                        chapterSubtitle!,
+                                        style: _getFontStyle(isArabic).copyWith(
+                                          fontSize: widget.fontSize * 1.1,
+                                          fontWeight: FontWeight.bold,
+                                          color: themeProvider.primaryTextColor,
+                                        ),
+                                        textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+                                        textAlign: isArabic ? TextAlign.right : TextAlign.left,
+                                      ),
+                                    ),
+                                  ),
                                 ...List.generate(noteList.length, (index) {
                                   String noteText = widget.removeDiacritics 
                                       ? BibleData.removeTashkeel(noteList[index])
                                       : noteList[index];
                                   
                                   return Padding(
-                                    padding: const EdgeInsets.only(bottom: 8.0),
+                                    padding: const EdgeInsets.only(bottom: 12.0),
                                     child: Row(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
                                       children: [
-                                        Text(
-                                          '${index + 1}. ',
-                                          style: _getFontStyle(isArabic).copyWith(
-                                            fontSize: widget.fontSize * 0.8,
-                                            color: Colors.grey.shade700,
-                                            height: 1.6,
+                                        Container(
+                                          margin: const EdgeInsets.only(left: 8, right: 8),
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: Theme.of(context).primaryColor.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(4),
+                                            border: Border.all(
+                                              color: Theme.of(context).primaryColor.withOpacity(0.3),
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '${index + 1}',
+                                            style: TextStyle(
+                                              fontSize: widget.fontSize * 0.75,
+                                              fontWeight: FontWeight.bold,
+                                              color: Theme.of(context).primaryColor,
+                                            ),
                                           ),
                                         ),
                                         Expanded(
                                           child: SelectableText(
                                             noteText,
                                             style: _getFontStyle(isArabic).copyWith(
-                                              fontSize: widget.fontSize * 0.8,
-                                              color: Colors.grey.shade700,
+                                              fontSize: widget.fontSize * 0.85,
+                                              color: themeProvider.secondaryTextColor,
                                               height: 1.6,
                                             ),
                                             textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
@@ -631,15 +659,15 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
+              color: Theme.of(context).cardColor,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade300),
+              border: Border.all(color: Theme.of(context).dividerColor),
             ),
             child: Text(
               '${widget.arabicName} - افرايم بشرى برسوم (ترجمة فانديك منحقة باسم يَهْوِه)',
               style: _getFontStyle(true).copyWith(
                 fontSize: widget.fontSize * 0.8,
-                color: Colors.grey.shade700,
+                color: themeProvider.secondaryTextColor,
                 fontStyle: FontStyle.italic,
               ),
               textAlign: TextAlign.center,
@@ -660,14 +688,4 @@ class VerseData {
     required this.number,
     required this.text,
   });
-}
-
-extension on TextSpan {
-  TextSpan copyWith({TextStyle? style}) {
-    return TextSpan(
-      text: text,
-      children: children,
-      style: style,
-    );
-  }
 }

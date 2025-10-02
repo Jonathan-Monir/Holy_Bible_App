@@ -1,6 +1,6 @@
 // lib/splash_screen.dart
 import 'package:flutter/material.dart';
-import 'main_reader_screen.dart';
+import 'chapter_selector_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -21,7 +21,14 @@ class _SplashScreenState extends State<SplashScreen> {
     if (mounted) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const MainReaderScreen()),
+        MaterialPageRoute(
+          builder: (context) => ChapterSelectorScreen(
+            currentChapter: 1,
+            onChapterSelected: (chapter) {
+              // This will be handled by the ChapterSelectorScreen itself
+            },
+          ),
+        ),
       );
     }
   }

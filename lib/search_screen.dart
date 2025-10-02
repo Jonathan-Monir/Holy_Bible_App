@@ -1,6 +1,8 @@
 // lib/search_screen.dart
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'bible_data.dart';
+import 'theme_provider.dart';
 
 class SearchScreen extends StatefulWidget {
   final Function(int) onChapterSelected;
@@ -86,10 +88,14 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Search Bible'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        title: Text(
+          'Search Bible',
+          style: TextStyle(color: themeProvider.primaryTextColor),
+        ),
       ),
       body: Column(
         children: [
@@ -97,12 +103,14 @@ class _SearchScreenState extends State<SearchScreen> {
             padding: const EdgeInsets.all(16.0),
             child: TextField(
               controller: _searchController,
+              style: TextStyle(color: themeProvider.primaryTextColor),
               decoration: InputDecoration(
                 hintText: 'Search in Bible...',
-                prefixIcon: const Icon(Icons.search),
+                hintStyle: TextStyle(color: themeProvider.secondaryTextColor),
+                prefixIcon: Icon(Icons.search, color: themeProvider.secondaryTextColor),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(Icons.clear),
+                        icon: Icon(Icons.clear, color: themeProvider.secondaryTextColor),
                         onPressed: () {
                           _searchController.clear();
                           setState(() {
@@ -113,6 +121,14 @@ class _SearchScreenState extends State<SearchScreen> {
                     : null,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: themeProvider.secondaryTextColor.withOpacity(0.3)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Theme.of(context).primaryColor),
                 ),
               ),
               onChanged: (value) {
@@ -133,13 +149,13 @@ class _SearchScreenState extends State<SearchScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.search_off, size: 64, color: Colors.grey.shade400),
+                    Icon(Icons.search_off, size: 64, color: themeProvider.secondaryTextColor),
                     const SizedBox(height: 16),
                     Text(
                       'No results found',
                       style: TextStyle(
                         fontSize: 18,
-                        color: Colors.grey.shade600,
+                        color: themeProvider.secondaryTextColor,
                       ),
                     ),
                   ],
@@ -157,9 +173,10 @@ class _SearchScreenState extends State<SearchScreen> {
                     child: ListTile(
                       title: Text(
                         '${result.bookName} ${result.chapterNumber}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
+                          color: themeProvider.primaryTextColor,
                         ),
                       ),
                       subtitle: Column(
@@ -167,15 +184,19 @@ class _SearchScreenState extends State<SearchScreen> {
                         children: [
                           Text(
                             result.arabicName,
-                            style: const TextStyle(fontSize: 12),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: themeProvider.secondaryTextColor,
+                            ),
                             textDirection: TextDirection.rtl,
                           ),
                           const SizedBox(height: 4),
                           Text(
                             result.verseText,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 13,
                               height: 1.4,
+                              color: themeProvider.primaryTextColor,
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -202,13 +223,13 @@ class _SearchScreenState extends State<SearchScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.search, size: 64, color: Colors.grey.shade400),
+                    Icon(Icons.search, size: 64, color: themeProvider.secondaryTextColor),
                     const SizedBox(height: 16),
                     Text(
                       'Enter search term',
                       style: TextStyle(
                         fontSize: 18,
-                        color: Colors.grey.shade600,
+                        color: themeProvider.secondaryTextColor,
                       ),
                     ),
                   ],

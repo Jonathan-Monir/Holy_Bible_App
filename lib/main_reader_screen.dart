@@ -10,7 +10,8 @@ import 'chapter_selector_screen.dart';
 import 'theme_provider.dart';
 
 class MainReaderScreen extends StatefulWidget {
-  const MainReaderScreen({super.key});
+  final int? initialChapter;
+  const MainReaderScreen({super.key, this.initialChapter});
 
   @override
   State<MainReaderScreen> createState() => _MainReaderScreenState();
@@ -28,7 +29,8 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(initialPage: 0);
+    currentGlobalChapter = widget.initialChapter ?? 1;
+    _pageController = PageController(initialPage: currentGlobalChapter - 1);
     _loadSavedSettings();
   }
 
@@ -76,8 +78,10 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
     }
   }
 
-  void _navigateToChapter(int globalChapter) {
+  void _navigateToChapter(int globalChapter) async {
     if (globalChapter >= 1 && globalChapter <= totalChapters) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('last_chapter', globalChapter);
       setState(() {
         currentGlobalChapter = globalChapter;
       });
@@ -114,9 +118,7 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
                 Icons.chevron_left,
                 color: currentGlobalChapter > 1 
                     ? Theme.of(context).primaryColor
-                    : (Theme.of(context).brightness == Brightness.dark
-                        ? Colors.grey.shade700
-                        : Colors.grey),
+                    : themeProvider.secondaryTextColor.withOpacity(0.3),
                 size: 28,
               ),
             ),
@@ -170,9 +172,7 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
                 Icons.chevron_right,
                 color: currentGlobalChapter < totalChapters 
                     ? Theme.of(context).primaryColor
-                    : (Theme.of(context).brightness == Brightness.dark
-                        ? Colors.grey.shade700
-                        : Colors.grey),
+                    : themeProvider.secondaryTextColor.withOpacity(0.3),
                 size: 28,
               ),
             ),
@@ -227,9 +227,12 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
       body: PageView.builder(
         controller: _pageController,
         itemCount: totalChapters,
-        onPageChanged: (index) {
+        onPageChanged: (index) async {
+          final newChapter = index + 1;
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setInt('last_chapter', newChapter);
           setState(() {
-            currentGlobalChapter = index + 1;
+            currentGlobalChapter = newChapter;
           });
         },
         itemBuilder: (context, index) {

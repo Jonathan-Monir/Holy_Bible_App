@@ -128,117 +128,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
+        title: Text(
+          'Settings',
+          style: TextStyle(color: themeProvider.primaryTextColor),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Theme Selection Card
-            Card(
-              elevation: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.palette, color: Theme.of(context).primaryColor),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Theme',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    
-                    GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                        childAspectRatio: 1.5,
-                      ),
-                      itemCount: _themes.length,
-                      itemBuilder: (context, index) {
-                        final mode = _themes.keys.elementAt(index);
-                        final theme = _themes[mode]!;
-                        final isSelected = themeProvider.themeMode == mode;
-                        
-                        return GestureDetector(
-                          onTap: () => themeProvider.setTheme(mode),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: theme['color'],
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: isSelected ? Colors.white : Colors.transparent,
-                                width: 3,
-                              ),
-                              boxShadow: [
-                                if (isSelected)
-                                  BoxShadow(
-                                    color: theme['color'].withOpacity(0.5),
-                                    blurRadius: 8,
-                                    spreadRadius: 2,
-                                  ),
-                              ],
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  theme['icon'],
-                                  color: Colors.white,
-                                  size: 32,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  theme['name'],
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                Text(
-                                  theme['arabicName'],
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 11,
-                                  ),
-                                  textDirection: TextDirection.rtl,
-                                ),
-                                if (isSelected)
-                                  const Padding(
-                                    padding: EdgeInsets.only(top: 4),
-                                    child: Icon(
-                                      Icons.check_circle,
-                                      color: Colors.white,
-                                      size: 16,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            
-            const SizedBox(height: 16),
-            
             // Font Size Card
             Card(
               elevation: 2,
@@ -251,11 +150,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       children: [
                         Icon(Icons.text_fields, color: Theme.of(context).primaryColor),
                         const SizedBox(width: 8),
-                        const Text(
+                        Text(
                           'Font Size',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
+                            color: themeProvider.primaryTextColor,
                           ),
                         ),
                       ],
@@ -350,11 +250,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       children: [
                         Icon(Icons.font_download, color: Theme.of(context).primaryColor),
                         const SizedBox(width: 8),
-                        const Text(
+                        Text(
                           'Arabic Font',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
+                            color: themeProvider.primaryTextColor,
                           ),
                         ),
                       ],
@@ -393,7 +294,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             textDirection: TextDirection.rtl,
                           ),
                           subtitle: Text(
-                            'في البدء خلق الله السموات والأرض',
+                            '‏في البداءة خلق إلوهيم السماوات والأرض.',
                             style: _getFontStyle(fontKey).copyWith(
                               fontSize: 14,
                               color: themeProvider.secondaryTextColor,
@@ -434,11 +335,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       children: [
                         Icon(Icons.text_rotation_none, color: Theme.of(context).primaryColor),
                         const SizedBox(width: 8),
-                        const Text(
+                        Text(
                           'Text Display',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
+                            color: themeProvider.primaryTextColor,
                           ),
                         ),
                       ],
@@ -456,11 +358,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: Column(
                         children: [
                           SwitchListTile(
-                            title: const Text(
+                            title: Text(
                               'Remove Diacritics (التشكيل)',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
+                                color: themeProvider.primaryTextColor,
                               ),
                             ),
                             subtitle: Text(
@@ -500,7 +403,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   ),
                                 ),
                                 Text(
-                                  'فِي ٱلْبَدْءِ خَلَقَ ٱللهُ ٱلسَّمَاوَاتِ وَٱلْأَرْضَ',
+                                  '‏فِي الْبَدَاءَةِ خَلَقَ إلُوهِيم السَّمَاوَاتِ وَالأَرْضَ.',
                                   style: _getFontStyle(_selectedFont).copyWith(
                                     fontSize: 14,
                                     height: 1.5,
@@ -518,7 +421,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   ),
                                 ),
                                 Text(
-                                  'في البدء خلق الله السماوات والأرض',
+                                  '‏في البداءة خلق إلوهيم السماوات والأرض.',
                                   style: _getFontStyle(_selectedFont).copyWith(
                                     fontSize: 14,
                                     height: 1.5,
@@ -539,7 +442,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             
             const SizedBox(height: 16),
             
-            // About Card
+            
+            const SizedBox(height: 16),
+            
+            // Theme Selection Card (MOVED TO END)
             Card(
               elevation: 2,
               child: Padding(
@@ -547,20 +453,95 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'About',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      children: [
+                        Icon(Icons.palette, color: Theme.of(context).primaryColor),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Theme',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: themeProvider.primaryTextColor,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Holy Bible App\nVersion 1.0.0',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: themeProvider.secondaryTextColor,
+                    const SizedBox(height: 16),
+                    
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: 1.5,
                       ),
+                      itemCount: _themes.length,
+                      itemBuilder: (context, index) {
+                        final mode = _themes.keys.elementAt(index);
+                        final theme = _themes[mode]!;
+                        final isSelected = themeProvider.themeMode == mode;
+                        
+                        return GestureDetector(
+                          onTap: () => themeProvider.setTheme(mode),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: theme['color'],
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isSelected ? Colors.white : Colors.transparent,
+                                width: 3,
+                              ),
+                              boxShadow: [
+                                if (isSelected)
+                                  BoxShadow(
+                                    color: theme['color'].withOpacity(0.5),
+                                    blurRadius: 8,
+                                    spreadRadius: 2,
+                                  ),
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  theme['icon'],
+                                  color: Colors.white,
+                                  size: 32,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  theme['name'],
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                Text(
+                                  theme['arabicName'],
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 11,
+                                  ),
+                                  textDirection: TextDirection.rtl,
+                                ),
+                                if (isSelected)
+                                  const Padding(
+                                    padding: EdgeInsets.only(top: 4),
+                                    child: Icon(
+                                      Icons.check_circle,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),

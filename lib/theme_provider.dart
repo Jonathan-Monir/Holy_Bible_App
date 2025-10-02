@@ -10,7 +10,7 @@ enum AppThemeMode {
 }
 
 class ThemeProvider extends ChangeNotifier {
-  AppThemeMode _themeMode = AppThemeMode.light;
+  AppThemeMode _themeMode = AppThemeMode.light; // DEFAULT IS LIGHT
   
   AppThemeMode get themeMode => _themeMode;
   
@@ -20,10 +20,10 @@ class ThemeProvider extends ChangeNotifier {
   
   Future<void> _loadTheme() async {
     final prefs = await SharedPreferences.getInstance();
-    final themeName = prefs.getString('theme_mode') ?? 'light';
+    final themeName = prefs.getString('theme_mode') ?? 'light'; // DEFAULT IS LIGHT
     _themeMode = AppThemeMode.values.firstWhere(
       (e) => e.name == themeName,
-      orElse: () => AppThemeMode.light,
+      orElse: () => AppThemeMode.light, // DEFAULT IS LIGHT
     );
     notifyListeners();
   }
@@ -54,11 +54,13 @@ class ThemeProvider extends ChangeNotifier {
     useMaterial3: true,
     brightness: Brightness.light,
     primarySwatch: Colors.blue,
+    primaryColor: Colors.blue.shade700,
     scaffoldBackgroundColor: Colors.white,
     appBarTheme: AppBarTheme(
       backgroundColor: Colors.white,
       foregroundColor: Colors.blue.shade700,
       elevation: 1,
+      iconTheme: IconThemeData(color: Colors.blue.shade700),
     ),
     cardTheme: const CardThemeData(
       color: Colors.white,
@@ -75,11 +77,13 @@ class ThemeProvider extends ChangeNotifier {
     useMaterial3: true,
     brightness: Brightness.dark,
     primarySwatch: Colors.blue,
+    primaryColor: Colors.blue.shade400,
     scaffoldBackgroundColor: const Color(0xFF121212),
-    appBarTheme: const AppBarTheme(
-      backgroundColor: Color(0xFF1E1E1E),
-      foregroundColor: Colors.blue,
+    appBarTheme: AppBarTheme(
+      backgroundColor: const Color(0xFF1E1E1E),
+      foregroundColor: Colors.blue.shade400,
       elevation: 1,
+      iconTheme: IconThemeData(color: Colors.blue.shade400),
     ),
     cardTheme: const CardThemeData(
       color: Color(0xFF1E1E1E),
@@ -96,11 +100,13 @@ class ThemeProvider extends ChangeNotifier {
     useMaterial3: true,
     brightness: Brightness.light,
     primarySwatch: Colors.brown,
+    primaryColor: const Color(0xFF8B7355),
     scaffoldBackgroundColor: const Color(0xFFF4F1EA),
     appBarTheme: const AppBarTheme(
       backgroundColor: Color(0xFFE8E3D3),
       foregroundColor: Color(0xFF5D4E37),
       elevation: 1,
+      iconTheme: IconThemeData(color: Color(0xFF5D4E37)),
     ),
     cardTheme: const CardThemeData(
       color: Color(0xFFE8E3D3),
@@ -117,11 +123,13 @@ class ThemeProvider extends ChangeNotifier {
     useMaterial3: true,
     brightness: Brightness.dark,
     primarySwatch: Colors.blue,
+    primaryColor: const Color(0xFF6FBAFF),
     scaffoldBackgroundColor: const Color(0xFF0D1B2A),
     appBarTheme: const AppBarTheme(
       backgroundColor: Color(0xFF1B263B),
       foregroundColor: Color(0xFF6FBAFF),
       elevation: 1,
+      iconTheme: IconThemeData(color: Color(0xFF6FBAFF)),
     ),
     cardTheme: const CardThemeData(
       color: Color(0xFF1B263B),
@@ -160,15 +168,7 @@ class ThemeProvider extends ChangeNotifier {
   }
   
   Color get highlightColor {
-    switch (_themeMode) {
-      case AppThemeMode.light:
-        return Colors.yellow;
-      case AppThemeMode.dark:
-        return Colors.yellow.shade700;
-      case AppThemeMode.sepia:
-        return const Color(0xFFFFE6A0);
-      case AppThemeMode.blue:
-        return Colors.amber.shade700;
-    }
+    // Keep yellow highlight for all themes for consistency
+    return Colors.yellow;
   }
 }

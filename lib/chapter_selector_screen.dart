@@ -88,9 +88,7 @@ class _ChapterSelectorScreenState extends State<ChapterSelectorScreen>
                   Icons.menu_book,
                   color: isCurrentBook 
                       ? Colors.white 
-                      : (Theme.of(context).brightness == Brightness.dark
-                          ? Colors.grey.shade400
-                          : Colors.grey.shade600),
+                      : Theme.of(context).primaryColor,
                   size: 20,
                 ),
               ),
@@ -118,9 +116,7 @@ class _ChapterSelectorScreenState extends State<ChapterSelectorScreen>
               Icons.chevron_left,
               color: isCurrentBook 
                   ? Theme.of(context).primaryColor 
-                  : (Theme.of(context).brightness == Brightness.dark
-                      ? Colors.grey.shade600
-                      : Colors.grey.shade400),
+                  : themeProvider.secondaryTextColor,
             ),
             onTap: () {
               Navigator.push(
@@ -148,9 +144,14 @@ class _ChapterSelectorScreenState extends State<ChapterSelectorScreen>
     
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Select Book'),
+        title: Text(
+          'Select Book',
+          style: TextStyle(color: themeProvider.primaryTextColor),
+        ),
         bottom: TabBar(
           controller: _tabController,
+          labelStyle: TextStyle(fontWeight: FontWeight.bold),
+          unselectedLabelStyle: TextStyle(fontWeight: FontWeight.normal),
           tabs: [
             Tab(
               child: Row(
