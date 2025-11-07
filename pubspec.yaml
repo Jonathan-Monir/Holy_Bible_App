@@ -32,11 +32,23 @@ flutter:
         - asset: assets/fonts/Amiri-Regular.ttf
         - asset: assets/fonts/Amiri-Bold.ttf
           weight: 700
-        - asset: assets/fonts/Amiri-Italic.ttf
-          style: italic
-        - asset: assets/fonts/Amiri-BoldItalic.ttf
+    - family: Cairo
+      fonts:
+        - asset: assets/fonts/Cairo-Regular.ttf
+        - asset: assets/fonts/Cairo-Bold.ttf
           weight: 700
-          style: italic
+    - family: Lateef
+      fonts:
+        - asset: assets/fonts/Lateef-Regular.ttf
+    - family: "Scheherazade New"
+      fonts:
+        - asset: assets/fonts/ScheherazadeNew-Regular.ttf
+    - family: "Markazi Text"
+      fonts:
+        - asset: assets/fonts/MarkaziText-Regular.ttf
+    - family: "Noto Naskh Arabic"
+      fonts:
+        - asset: assets/fonts/NotoNaskhArabic-Regular.ttf
   uses-material-design: true
   assets:
     - assets/bible_docs/

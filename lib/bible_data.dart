@@ -1,4 +1,5 @@
 // lib/bible_data.dart
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
@@ -297,60 +298,262 @@ class BibleData {
 
   static Map<int, String> _parseDocumentContent(String content, {bool formatVerses = true}) {
     Map<int, String> chapters = {};
-    List<String> parts = content.split(RegExp(r'ال[إأ]صحَاحُ', multiLine: true));
     
-    if (parts.length > 1) {
-      for (int i = 1; i < parts.length; i++) {
-        String chapterContent = 'الإصحَاحُ${parts[i]}';
-        if (formatVerses) {
-          chapterContent = _formatVerses(chapterContent);
-        }
-        chapters[i] = chapterContent.trim();
+    // Check which pattern this document uses
+    bool isPsalms = content.contains(RegExp(r'اَلْمَزْمُورُ'));
+    
+    if (isPsalms) {
+      // For Psalms, use a different approach: find all occurrences and extract between them
+      RegExp psalmPattern = RegExp(r'اَلْمَزْمُورُ\s+([^\n]+)', multiLine: true);
+      List<RegExpMatch> matches = psalmPattern.allMatches(content).toList();
+      
+      
+      // For footnotes, ignore any content before the first psalm marker
+      // For regular content, keep it
+      int firstMatchStart = matches[0].start;
+      if (!formatVerses && firstMatchStart > 0) {
+        String beforeFirstMatch = content.substring(0, firstMatchStart).trim();
       }
+      
+      for (int i = 0; i < matches.length; i++) {
+        RegExpMatch match = matches[i];
+        String chapterName = match.group(1)!.trim();
+        
+        
+        int chapterNum = _parseArabicChapterNumber(chapterName);
+        
+        
+        // Extract content from current match to next match (or end of file)
+        int startPos = match.end;
+        int endPos = (i < matches.length - 1) ? matches[i + 1].start : content.length;
+        String chapterContent = content.substring(startPos, endPos).trim();
+        
+        
+        // For footnotes, if content is empty, skip it
+        if (!formatVerses && chapterContent.isEmpty) {
+          continue;
+        }
+        
+        // Add back the heading
+        String fullContent = 'اَلْمَزْمُورُ $chapterName\n$chapterContent';
+        
+        if (formatVerses) {
+          fullContent = _formatVerses(fullContent);
+        }
+        
+        chapters[chapterNum] = fullContent;
+      }
+      
     } else {
-      String formatted = formatVerses ? _formatVerses(content.trim()) : content.trim();
-      chapters[1] = formatted;
+      // Original logic for non-Psalms books
+      List<String> parts = content.split(RegExp(r'ال[إأ]صحَاحُ\s+', multiLine: true));
+      
+      if (parts.length > 1) {
+        for (int i = 1; i < parts.length; i++) {
+          String chapterContent = parts[i];
+          
+          // Extract the chapter number from the first line
+          String firstLine = chapterContent.split('\n').first.trim();
+          int chapterNum = _parseArabicChapterNumber(firstLine);
+          
+          // Reconstruct with heading
+          String reconstructed = 'الإصحَاحُ $chapterContent';
+          
+          if (formatVerses) {
+            reconstructed = _formatVerses(reconstructed);
+          }
+          chapters[chapterNum] = reconstructed.trim();
+        }
+      } else {
+        String formatted = formatVerses ? _formatVerses(content.trim()) : content.trim();
+        chapters[1] = formatted;
+      }
     }
+    
     return chapters;
   }
 
-  static Future<String> getChapterFootnotes(int bookIndex, int chapterNumber) async {
-    final book = books[bookIndex];
-    final fileName = book['fileName'].replaceAll('.txt', '_footnotes.txt');
-    final bookName = book['name'];
-    final arabicName = book['arabicName'];
-
-    if (_footnotesCache.containsKey(fileName) && _footnotesCache[fileName]!.containsKey(chapterNumber)) {
-      return _footnotesCache[fileName]![chapterNumber]!;
+  static int _parseArabicChapterNumber(String chapterHeading) {
+    // Remove diacritics for easier matching
+    String clean = removeTashkeel(chapterHeading);
+    
+    
+    // Check for hundreds FIRST (since "المئة" appears at the beginning in Psalms like "المئة والرابع والاربعون")
+// Check for hundreds FIRST (since "المئة" appears at the beginning in Psalms like "المئة والرابع والاربعون")
+    if (clean.contains('المئة') || clean.contains('المية')) {
+      int result = 100;
+      
+      // Extract the tens and units that come AFTER "المئة"
+      int unit = 0;
+      int ten = 0;
+      
+      // Check for teens pattern first (e.g., "المئة والحادي عشر" = 111)
+      if (clean.contains('عشر') && !clean.contains('عشرون')) {
+        if (clean.contains('الحادي')) unit = 11;
+        else if (clean.contains('الثاني')) unit = 12;
+        else if (clean.contains('الثالث')) unit = 13;
+        else if (clean.contains('الرابع')) unit = 14;
+        else if (clean.contains('الخامس')) unit = 15;
+        else if (clean.contains('السادس')) unit = 16;
+        else if (clean.contains('السابع')) unit = 17;
+        else if (clean.contains('الثامن')) unit = 18;
+        else if (clean.contains('التاسع')) unit = 19;
+        
+        return result + unit;
+      }
+      
+      // Determine the unit part (1-10)
+      if (clean.contains('الواحد')) unit = 1;
+      else if (clean.contains('الحادي')) unit = 1;  // ADD THIS LINE - "الحادي" means "the first/eleventh"
+      else if (clean.contains('الثاني')) unit = 2;
+      else if (clean.contains('الثالث')) unit = 3;
+      else if (clean.contains('الرابع')) unit = 4;
+      else if (clean.contains('الخامس')) unit = 5;
+      else if (clean.contains('السادس')) unit = 6;
+      else if (clean.contains('السابع')) unit = 7;
+      else if (clean.contains('الثامن')) unit = 8;
+      else if (clean.contains('التاسع')) unit = 9;
+      else if (clean.contains('العاشر')) unit = 10;
+      
+      // Determine the tens part
+      if (clean.contains('العشرون')) ten = 20;
+      else if (clean.contains('الثلاثون')) ten = 30;
+      else if (clean.contains('الأربعون') || clean.contains('الاربعون')) ten = 40;
+      else if (clean.contains('الخمسون')) ten = 50;
+      else if (clean.contains('الستون')) ten = 60;
+      else if (clean.contains('السبعون')) ten = 70;
+      else if (clean.contains('الثمانون')) ten = 80;
+      else if (clean.contains('التسعون')) ten = 90;
+      
+      return result + ten + unit;
     }
-
-    String? content;
-    bool foundContent = false;
-
-    if (!kIsWeb) {
-      final bibleDocsPath = await getBibleDocsPath();
-      final externalFile = File('$bibleDocsPath/$fileName');
-      if (await externalFile.exists()) {
-        content = await externalFile.readAsString();
-        foundContent = true;
+    
+    // Teens 11-19 (pattern: "الثاني عشر" = 12) - check BEFORE simple numbers
+    if (clean.contains('عشر') && !clean.contains('العشرون')) {
+      if (clean.contains('الحادي')) return 11;
+      if (clean.contains('الثاني')) return 12;
+      if (clean.contains('الثالث')) return 13;
+      if (clean.contains('الرابع')) return 14;
+      if (clean.contains('الخامس')) return 15;
+      if (clean.contains('السادس')) return 16;
+      if (clean.contains('السابع')) return 17;
+      if (clean.contains('الثامن')) return 18;
+      if (clean.contains('التاسع')) return 19;
+    }
+    
+    // Compound numbers (21-29, 31-39, etc.) with "و" - check BEFORE simple numbers and tens
+    if (clean.contains('و') && !clean.contains('المئة') && !clean.contains('المية')) {
+      int unit = 0;
+      int ten = 0;
+      
+      // Determine the unit part
+      if (clean.contains('الحادي')) unit = 1;
+      else if (clean.contains('الثاني')) unit = 2;
+      else if (clean.contains('الثالث')) unit = 3;
+      else if (clean.contains('الرابع')) unit = 4;
+      else if (clean.contains('الخامس')) unit = 5;
+      else if (clean.contains('السادس')) unit = 6;
+      else if (clean.contains('السابع')) unit = 7;
+      else if (clean.contains('الثامن')) unit = 8;
+      else if (clean.contains('التاسع')) unit = 9;
+      
+      // Determine the tens part
+      if (clean.contains('العشرون')) ten = 20;
+      else if (clean.contains('الثلاثون')) ten = 30;
+      else if (clean.contains('الأربعون') || clean.contains('الاربعون')) ten = 40;
+      else if (clean.contains('الخمسون')) ten = 50;
+      else if (clean.contains('الستون')) ten = 60;
+      else if (clean.contains('السبعون')) ten = 70;
+      else if (clean.contains('الثمانون')) ten = 80;
+      else if (clean.contains('التسعون')) ten = 90;
+      
+      if (unit > 0 && ten > 0) {
+        return ten + unit;
       }
     }
-
-    if (!foundContent) {
-      try {
-        content = await rootBundle.loadString('assets/bible_docs/$fileName');
-        foundContent = true;
-      } catch (e) {
-        return '';
+    
+    // Tens (20, 30, 40, 50, 60, 70, 80, 90) - check BEFORE simple numbers
+    final Map<String, int> tens = {
+      'العشرون': 20,
+      'الثلاثون': 30,
+      'الأربعون': 40, 'الاربعون': 40,
+      'الخمسون': 50,
+      'الستون': 60,
+      'السبعون': 70,
+      'الثمانون': 80,
+      'التسعون': 90,
+    };
+    
+    for (var entry in tens.entries) {
+      if (clean.contains(entry.key)) {
+        return entry.value;
       }
     }
-
-    final chapters = _parseDocumentContent(content!, formatVerses: false);
-
-    _footnotesCache[fileName] = chapters;
-
-    return chapters[chapterNumber] ?? '';
+    
+    // Simple numbers 1-10 - check LAST to avoid false matches
+    final Map<String, int> simple = {
+      'الأول': 1, 'الاول': 1,
+      'الثاني': 2,
+      'الثالث': 3,
+      'الرابع': 4,
+      'الخامس': 5,
+      'السادس': 6,
+      'السابع': 7,
+      'الثامن': 8,
+      'التاسع': 9,
+      'العاشر': 10,
+    };
+    
+    for (var entry in simple.entries) {
+      if (clean.contains(entry.key)) {
+        return entry.value;
+      }
+    }
+    
+    // Fallback: return 1 if nothing matches
+    print('WARNING: Could not parse chapter number from: "$chapterHeading"');
+    return 1;
   }
+
+static Future<String> getChapterFootnotes(int bookIndex, int chapterNumber) async {
+  final book = books[bookIndex];
+  final fileName = book['fileName'].replaceAll('.txt', '_footnotes.txt');
+  final bookName = book['name'];
+  final arabicName = book['arabicName'];
+
+  if (_footnotesCache.containsKey(fileName) && _footnotesCache[fileName]!.containsKey(chapterNumber)) {
+    return _footnotesCache[fileName]![chapterNumber]!;
+  }
+
+  String? content;
+  bool foundContent = false;
+
+  if (!kIsWeb) {
+    final bibleDocsPath = await getBibleDocsPath();
+    final externalFile = File('$bibleDocsPath/$fileName');
+    if (await externalFile.exists()) {
+      content = await externalFile.readAsString();
+      foundContent = true;
+    }
+  }
+
+  if (!foundContent) {
+    try {
+      content = await rootBundle.loadString('assets/bible_docs/$fileName');
+      foundContent = true;
+    } catch (e) {
+      return '';
+    }
+  }
+
+  final chapters = _parseDocumentContent(content!, formatVerses: false);
+
+
+  _footnotesCache[fileName] = chapters;
+
+  // Return empty string if chapter doesn't have footnotes, not null
+  return chapters[chapterNumber] ?? '';
+}
 
   static String _formatVerses(String content) {
     String formatted = content;

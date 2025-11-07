@@ -106,17 +106,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   TextStyle _getFontStyle(String fontFamily) {
     switch (fontFamily) {
       case 'Amiri':
-        return const TextStyle(fontFamily: 'Amiri');
       case 'Cairo':
-        return GoogleFonts.cairo();
       case 'Lateef':
-        return GoogleFonts.lateef();
       case 'Scheherazade New':
-        return GoogleFonts.scheherazadeNew();
       case 'Markazi Text':
-        return GoogleFonts.markaziText();
       case 'Noto Naskh Arabic':
-        return GoogleFonts.notoNaskhArabic();
+        return TextStyle(fontFamily: fontFamily);
       default:
         return const TextStyle(fontFamily: 'Amiri');
     }

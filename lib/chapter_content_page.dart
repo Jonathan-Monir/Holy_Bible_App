@@ -1,5 +1,5 @@
 // lib/chapter_content_page.dart
-
+import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 import 'theme_provider.dart';
 import 'package:flutter/material.dart';
@@ -45,11 +45,22 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   Map<String, Map<int, List<TextRange>>> highlightedRanges = <String, Map<int, List<TextRange>>>{};
   Map<String, Map<int, List<TextRange>>> underlinedRanges = <String, Map<int, List<TextRange>>>{};
   String footnotes = '';
+  final GlobalKey _footnotesKey = GlobalKey();
+  final Map<int, GlobalKey> _footnoteKeys = {};
+  final Map<int, GlobalKey> _verseKeys = {};
+  late ScrollController _scrollController;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
-    super.initState();
-    _loadSavedData();
+      super.initState();
+      _scrollController = ScrollController();
+      _loadSavedData();
   }
 
   @override
@@ -219,7 +230,28 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         String verseText = match.group(2)!.trim();
         
         if (verseText.isNotEmpty) {
-          verseList.add(VerseData(number: verseNumber, text: verseText));
+          // Extract footnote references from the verse text
+          // Store matches with their positions to maintain left-to-right order
+          List<int> footnoteRefs = [];
+          RegExp footnotePattern = RegExp(r'\[(\d+)\]');
+          List<Match> matches = footnotePattern.allMatches(verseText).toList();
+          
+          // Sort matches by their position (left to right in the original text)
+          // This ensures we get the correct order regardless of RTL display
+          matches.sort((a, b) => a.start.compareTo(b.start));
+          
+          for (Match m in matches) {
+            int refNum = int.parse(m.group(1)!);
+            if (!footnoteRefs.contains(refNum)) {  // Avoid duplicates
+              footnoteRefs.add(refNum);
+            }
+          }
+          
+          verseList.add(VerseData(
+            number: verseNumber,
+            text: verseText,
+            footnoteRefs: footnoteRefs,
+          ));
         }
       } else {
         if (line.trim().isNotEmpty) {
@@ -229,6 +261,30 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     }
     
     return verseList;
+  }
+
+  void _scrollToFootnote(int footnoteNumber) {
+    final key = _footnoteKeys[footnoteNumber];
+    if (key?.currentContext != null) {
+      Scrollable.ensureVisible(
+        key!.currentContext!,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        alignment: 0.2,
+      );
+    }
+  }
+
+  void _scrollToVerse(int verseNumber) {
+    final key = _verseKeys[verseNumber];
+    if (key?.currentContext != null) {
+      Scrollable.ensureVisible(
+        key!.currentContext!,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        alignment: 0.2,
+      );
+    }
   }
 
   Map<int, int> _computeVerseOffsets(List<VerseData> verses) {
@@ -360,15 +416,18 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
             ),
           ),
           Expanded(
-            child: SelectableText.rich(
-              TextSpan(
-                children: _buildVerseSpansForWidget(verse.text, hlRanges, ulRanges, isArabic),
+            child: Container(
+              key: verse.number > 0 ? (_verseKeys[verse.number] ??= GlobalKey()) : null,
+              child: SelectableText.rich(
+                TextSpan(
+                  children: _buildVerseSpansForWidget(verse.text, hlRanges, ulRanges, isArabic, verse.number),
+                ),
+                textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+                textAlign: TextAlign.start,
+                contextMenuBuilder: (context, editableTextState) {
+                  return _buildVerseContextMenu(context, editableTextState, verse.number, isArabic);
+                },
               ),
-              textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
-              textAlign: TextAlign.start,
-              contextMenuBuilder: (context, editableTextState) {
-                return _buildVerseContextMenu(context, editableTextState, verse.number, isArabic);
-              },
             ),
           ),
         ],
@@ -376,31 +435,105 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     );
   }
 
-  List<TextSpan> _buildVerseSpansForWidget(String verseText, List<TextRange> hlRanges, List<TextRange> ulRanges, bool isArabic) {
+  List<InlineSpan> _buildVerseSpansForWidget(String verseText, List<TextRange> hlRanges, List<TextRange> ulRanges, bool isArabic, int verseNumber) {
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     
     if (verseText.isEmpty) return [TextSpan(text: verseText)];
 
     String processedText = widget.removeDiacritics ? BibleData.removeTashkeel(verseText) : verseText;
-    String displayText = '\u200F$processedText';
+    
+    List<InlineSpan> spans = [];
+    
+    // Split text by footnote markers [1], [2], etc.
+    RegExp footnotePattern = RegExp(r'\[(\d+)\]');
+    int lastEnd = 0;
+    
+    List<Match> matches = footnotePattern.allMatches(processedText).toList();
+    
+    for (Match match in matches) {
+      int start = match.start;
+      int end = match.end;
+      int footnoteNum = int.parse(match.group(1)!);
+      
+      // Add text before the footnote marker
+      if (start > lastEnd) {
+        String textBefore = processedText.substring(lastEnd, start);
+        String displayText = isArabic ? '\u200F$textBefore' : textBefore;
+        spans.addAll(_buildStyledSpans(displayText, hlRanges, ulRanges, isArabic, lastEnd));
+      }
+      
+      // Use TextSpan with regular numbers (not Unicode superscripts) for both Arabic and non-Arabic
+      // Wrap with LRI/PDI to keep the number in LTR direction
+      spans.add(
+        TextSpan(
+          text: '\u2066$footnoteNum\u2069',
+          style: TextStyle(
+            fontSize: widget.fontSize * 0.65,
+            color: Theme.of(context).primaryColor,
+            fontWeight: FontWeight.bold,
+            fontFeatures: const [FontFeature.superscripts()],
+          ),
+          recognizer: TapGestureRecognizer()..onTap = () => _scrollToFootnote(footnoteNum),
+        ),
+      );
+      
+      lastEnd = end;
+    }
+    
+    // Add remaining text after the last footnote marker
+    if (lastEnd < processedText.length) {
+      String remainingText = processedText.substring(lastEnd);
+      String displayText = isArabic ? '\u200F$remainingText' : remainingText;
+      spans.addAll(_buildStyledSpans(displayText, hlRanges, ulRanges, isArabic, lastEnd));
+    }
+    
+    return spans;
+  }
 
-    Set<int> points = {0, displayText.length};
+  String _toSuperscript(String number) {
+    const superscriptMap = {
+      '0': '⁰',
+      '1': '¹',
+      '2': '²',
+      '3': '³',
+      '4': '⁴',
+      '5': '⁵',
+      '6': '⁶',
+      '7': '⁷',
+      '8': '⁸',
+      '9': '⁹',
+    };
+    
+    return number.split('').map((char) => superscriptMap[char] ?? char).join();
+  }
+
+  List<InlineSpan> _buildStyledSpans(String text, List<TextRange> hlRanges, List<TextRange> ulRanges, bool isArabic, int offset) {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    
+    if (text.isEmpty) return [];
+    
+    Set<int> points = {0, text.length};
     for (var r in [...hlRanges, ...ulRanges]) {
-      points.add(r.start + 1);
-      points.add(r.end + 1);
+      int adjustedStart = r.start + 1 - offset;
+      int adjustedEnd = r.end + 1 - offset;
+      if (adjustedStart >= 0 && adjustedStart <= text.length) points.add(adjustedStart);
+      if (adjustedEnd >= 0 && adjustedEnd <= text.length) points.add(adjustedEnd);
     }
     List<int> sortedPoints = points.toList()..sort();
 
-    List<TextSpan> spans = [];
+    List<InlineSpan> spans = [];
     for (int i = 0; i < sortedPoints.length - 1; i++) {
       int start = sortedPoints[i];
       int end = sortedPoints[i + 1];
+      
+      int globalStart = start + offset;
+      int globalEnd = end + offset;
 
-      bool isHighlighted = hlRanges.any((r) => r.start + 1 <= start && r.end + 1 >= end);
-      bool isUnderlined = ulRanges.any((r) => r.start + 1 <= start && r.end + 1 >= end);
+      bool isHighlighted = hlRanges.any((r) => r.start + 1 <= globalStart && r.end + 1 >= globalEnd);
+      bool isUnderlined = ulRanges.any((r) => r.start + 1 <= globalStart && r.end + 1 >= globalEnd);
 
       spans.add(TextSpan(
-        text: displayText.substring(start, end),
+        text: text.substring(start, end),
         style: _getFontStyle(isArabic).copyWith(
           fontWeight: FontWeight.normal,
           height: 1.8,
@@ -555,16 +688,17 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
             child: isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : SingleChildScrollView(
+                    controller: _scrollController,
                     child: Column(
                       crossAxisAlignment: isArabic ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                       children: [
                         ...verses.map((verse) => _buildVerseWidget(verse, isArabic)).toList(),
                         
-                        // UPDATED FOOTNOTES SECTION WITH NUMBERING
                         if (noteList.isNotEmpty || chapterSubtitle != null)
                           Padding(
                             padding: const EdgeInsets.only(top: 24.0),
                             child: Column(
+                              key: _footnotesKey,
                               crossAxisAlignment: isArabic ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                               children: [
                                 Center(
@@ -601,39 +735,64 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
                                       ),
                                     ),
                                   ),
-                                ...List.generate(noteList.length, (index) {
-                                  String noteText = widget.removeDiacritics 
-                                      ? BibleData.removeTashkeel(noteList[index])
-                                      : noteList[index];
+                                ...noteList.map((noteText) {
+                                  // Extract footnote number and text
+                                  RegExp footnoteNumPattern = RegExp(r'^\[(\d+)\]\s*(.*)$', dotAll: true);
+                                  Match? match = footnoteNumPattern.firstMatch(noteText);
+                                  
+                                  // If no number found in the text, skip this footnote
+                                  if (match == null) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  
+                                  int footnoteNumber = int.parse(match.group(1)!);
+                                  String footnoteContent = match.group(2)!.trim();
+                                  
+                                  
+                                  if (widget.removeDiacritics) {
+                                    footnoteContent = BibleData.removeTashkeel(footnoteContent);
+                                  }
                                   
                                   return Padding(
                                     padding: const EdgeInsets.only(bottom: 12.0),
                                     child: Row(
+                                      key: _footnoteKeys[footnoteNumber] ??= GlobalKey(),
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
                                       children: [
-                                        Container(
-                                          margin: const EdgeInsets.only(left: 8, right: 8),
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: Theme.of(context).primaryColor.withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(4),
-                                            border: Border.all(
-                                              color: Theme.of(context).primaryColor.withOpacity(0.3),
+                                        GestureDetector(
+                                          onTap: () {
+                                            // Find verse that contains this footnote reference
+                                            for (var verse in verses) {
+                                              if (verse.footnoteRefs.contains(footnoteNumber)) {
+                                                _scrollToVerse(verse.number);
+                                                break;
+                                              }
+                                            }
+                                          },
+                                          child: Container(
+                                            margin: const EdgeInsets.only(left: 8, right: 8),
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Theme.of(context).primaryColor.withOpacity(0.1),
+                                              borderRadius: BorderRadius.circular(4),
+                                              border: Border.all(
+                                                color: Theme.of(context).primaryColor.withOpacity(0.3),
+                                              ),
                                             ),
-                                          ),
-                                          child: Text(
-                                            '${index + 1}',
-                                            style: TextStyle(
-                                              fontSize: widget.fontSize * 0.75,
-                                              fontWeight: FontWeight.bold,
-                                              color: Theme.of(context).primaryColor,
+                                            child: Text(
+                                              '[$footnoteNumber]',
+                                              style: TextStyle(
+                                                fontSize: widget.fontSize * 0.75,
+                                                fontWeight: FontWeight.bold,
+                                                color: Theme.of(context).primaryColor,
+                                              ),
                                             ),
                                           ),
                                         ),
                                         Expanded(
                                           child: SelectableText(
-                                            noteText,
+                                            footnoteContent,
                                             style: _getFontStyle(isArabic).copyWith(
                                               fontSize: widget.fontSize * 0.85,
                                               color: themeProvider.secondaryTextColor,
@@ -646,7 +805,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
                                       ],
                                     ),
                                   );
-                                }),
+                                }).toList(),
                               ],
                             ),
                           ),
@@ -683,9 +842,11 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
 class VerseData {
   final int number;
   final String text;
+  final List<int> footnoteRefs; // List of footnote numbers referenced in this verse
 
   VerseData({
     required this.number,
     required this.text,
+    this.footnoteRefs = const [],
   });
 }
