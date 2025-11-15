@@ -25,6 +25,10 @@ class ThemeProvider extends ChangeNotifier {
       (e) => e.name == themeName,
       orElse: () => AppThemeMode.light, // DEFAULT IS LIGHT
     );
+    
+    // Load colors
+    await _loadColors();
+    
     notifyListeners();
   }
   
@@ -170,5 +174,42 @@ class ThemeProvider extends ChangeNotifier {
   Color get highlightColor {
     // Keep yellow highlight for all themes for consistency
     return Colors.yellow;
+  }
+
+  // New properties for verse and footnote colors
+  Color _verseNumberColor = Colors.blue.shade700;
+  Color _footnoteNumberColor = Colors.lightBlue.shade600;
+
+  Color get verseNumberColor => _verseNumberColor;
+  Color get footnoteNumberColor => _footnoteNumberColor;
+
+  Future<void> setVerseNumberColor(Color color) async {
+    _verseNumberColor = color;
+    notifyListeners();
+    
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('verse_number_color', color.value);
+  }
+
+  Future<void> setFootnoteNumberColor(Color color) async {
+    _footnoteNumberColor = color;
+    notifyListeners();
+    
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('footnote_number_color', color.value);
+  }
+
+  Future<void> _loadColors() async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    final verseColorValue = prefs.getInt('verse_number_color');
+    if (verseColorValue != null) {
+      _verseNumberColor = Color(verseColorValue);
+    }
+    
+    final footnoteColorValue = prefs.getInt('footnote_number_color');
+    if (footnoteColorValue != null) {
+      _footnoteNumberColor = Color(footnoteColorValue);
+    }
   }
 }

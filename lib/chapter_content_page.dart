@@ -381,71 +381,113 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     }
   }
 
-  Widget _buildVerseWidget(VerseData verse, bool isArabic) {
-    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+  Widget _buildAllVersesWidget(List<VerseData> verses, bool isArabic) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
     
-    if (verse.number == 0) {
-      String displayText = widget.removeDiacritics ? BibleData.removeTashkeel(verse.text) : verse.text;
+    List<InlineSpan> allSpans = [];
+    
+    for (int i = 0; i < verses.length; i++) {
+      VerseData verse = verses[i];
       
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 16.0),
-        child: Align(
-          alignment: isArabic ? Alignment.centerRight : Alignment.centerLeft,
-          child: Text(
-            displayText,
-            style: _getFontStyle(isArabic).copyWith(
-              fontWeight: FontWeight.bold,
-              color: themeProvider.primaryTextColor,
-              fontSize: widget.fontSize * 1.1,
-            ),
-            textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
-            textAlign: isArabic ? TextAlign.right : TextAlign.left,
+      if (verse.number == 0) {
+        // Chapter subtitle/header
+        String displayText = widget.removeDiacritics ? BibleData.removeTashkeel(verse.text) : verse.text;
+        
+        allSpans.add(TextSpan(
+          text: displayText,
+          style: _getFontStyle(isArabic).copyWith(
+            fontWeight: FontWeight.bold,
+            color: themeProvider.primaryTextColor,
+            fontSize: widget.fontSize * 1.1,
           ),
-        ),
-      );
-    }
-
-    List<TextRange> hlRanges = highlightedRanges[_chapterKey]?[verse.number] ?? [];
-    List<TextRange> ulRanges = underlinedRanges[_chapterKey]?[verse.number] ?? [];
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
-        children: [
-          Container(
-            padding: const EdgeInsets.only(left: 4, right: 4),
-            child: Text(
-              '${verse.number}',
-              style: TextStyle(
-                fontSize: widget.fontSize * 0.8,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).primaryColor,
-                fontFamily: isArabic ? widget.fontFamily : 'serif',
-              ),
-              textDirection: TextDirection.ltr,
-            ),
-          ),
-          Expanded(
+        ));
+        allSpans.add(const TextSpan(text: '\n\n'));
+      } else {
+        // Store verse key for scrolling reference
+        final verseKey = _verseKeys[verse.number] ??= GlobalKey();
+        
+        // Verse number with explicit LTR direction to prevent reordering
+        allSpans.add(WidgetSpan(
+          alignment: PlaceholderAlignment.baseline,
+          baseline: TextBaseline.alphabetic,
+          child: Directionality(
+            textDirection: TextDirection.ltr,  // Force LTR for verse numbers
             child: Container(
-              key: verse.number > 0 ? (_verseKeys[verse.number] ??= GlobalKey()) : null,
-              child: SelectableText.rich(
-                TextSpan(
-                  children: _buildVerseSpansForWidget(verse.text, hlRanges, ulRanges, isArabic, verse.number),
+              key: verseKey,
+              child: Text(
+                '${verse.number} ',
+                style: TextStyle(
+                  fontSize: widget.fontSize * 0.8,
+                  fontWeight: FontWeight.bold,
+                  color: themeProvider.verseNumberColor,
+                  fontFamily: isArabic ? widget.fontFamily : 'serif',
                 ),
-                textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
-                textAlign: TextAlign.start,
-                contextMenuBuilder: (context, editableTextState) {
-                  return _buildVerseContextMenu(context, editableTextState, verse.number, isArabic);
-                },
               ),
             ),
           ),
-        ],
-      ),
+        ));
+        
+        // Verse content
+        List<TextRange> hlRanges = highlightedRanges[_chapterKey]?[verse.number] ?? [];
+        List<TextRange> ulRanges = underlinedRanges[_chapterKey]?[verse.number] ?? [];
+        
+        allSpans.addAll(_buildVerseSpansForWidget(verse.text, hlRanges, ulRanges, isArabic, verse.number));
+        
+        // Add space between verses (but not after the last verse)
+        if (i < verses.length - 1) {
+          allSpans.add(const TextSpan(text: ' '));
+        }
+      }
+    }
+    
+    return SelectableText.rich(
+      TextSpan(children: allSpans),
+      textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+      textAlign: TextAlign.start,
+      contextMenuBuilder: (context, editableTextState) {
+        return _buildGlobalContextMenu(context, editableTextState, isArabic);
+      },
     );
   }
+
+  Widget _buildGlobalContextMenu(BuildContext context, EditableTextState editableTextState, bool isArabic) {
+    final TextEditingValue value = editableTextState.textEditingValue;
+    final TextSelection selection = value.selection;
+
+    if (!selection.isValid || selection.isCollapsed) {
+      return const SizedBox.shrink();
+    }
+
+    final String selectedText = value.text.substring(selection.start, selection.end);
+
+    List<ContextMenuButtonItem> buttonItems = [];
+    
+    buttonItems.add(
+      ContextMenuButtonItem(
+        label: isArabic ? 'نسخ' : 'Copy',
+        onPressed: () {
+          Clipboard.setData(ClipboardData(text: selectedText));
+          editableTextState.hideToolbar();
+        },
+      ),
+    );
+
+    buttonItems.add(
+      ContextMenuButtonItem(
+        label: isArabic ? 'مشاركة' : 'Share',
+        onPressed: () {
+          Share.share(selectedText);
+          editableTextState.hideToolbar();
+        },
+      ),
+    );
+
+    return AdaptiveTextSelectionToolbar.buttonItems(
+      anchors: editableTextState.contextMenuAnchors,
+      buttonItems: buttonItems,
+    );
+  }
+
 
   List<InlineSpan> _buildVerseSpansForWidget(String verseText, List<TextRange> hlRanges, List<TextRange> ulRanges, bool isArabic, int verseNumber) {
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
@@ -476,19 +518,20 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       
       // Use TextSpan with regular numbers (not Unicode superscripts) for both Arabic and non-Arabic
       // Wrap with LRI/PDI to keep the number in LTR direction
+      // Use a smaller size and different styling
       spans.add(
         TextSpan(
           text: '\u2066$footnoteNum\u2069',
           style: TextStyle(
             fontSize: widget.fontSize * 0.65,
-            color: Theme.of(context).primaryColor,
+            color: themeProvider.footnoteNumberColor,  // Changed from Theme.of(context).primaryColor
             fontWeight: FontWeight.bold,
             fontFeatures: const [FontFeature.superscripts()],
           ),
           recognizer: TapGestureRecognizer()..onTap = () => _scrollToFootnote(footnoteNum),
         ),
       );
-      
+            
       lastEnd = end;
     }
     
@@ -646,7 +689,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    final themeProvider = Provider.of<ThemeProvider>(context);  // Remove listen: false
     bool isArabic = chapterContent.contains(RegExp(r'[\u0600-\u06FF]'));
     
     // Split footnotes into individual lines
@@ -704,7 +747,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
                     child: Column(
                       crossAxisAlignment: isArabic ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                       children: [
-                        ...verses.map((verse) => _buildVerseWidget(verse, isArabic)).toList(),
+                        _buildAllVersesWidget(verses, isArabic),
                         
                         if (noteList.isNotEmpty || chapterSubtitle != null)
                           Padding(

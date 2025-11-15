@@ -436,7 +436,62 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             
             const SizedBox(height: 16),
-            
+             const SizedBox(height: 16),
+
+            // Number Colors Card
+            Card(
+              elevation: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.format_color_text, color: Theme.of(context).primaryColor),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Number Colors',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: themeProvider.primaryTextColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Verse Number Color
+                    _buildColorOption(
+                      context: context,
+                      title: 'Verse Number Color',
+                      subtitle: 'Color for verse numbers (1, 2, 3...)',
+                      currentColor: themeProvider.verseNumberColor,
+                      onColorSelected: (color) {
+                        themeProvider.setVerseNumberColor(color);
+                      },
+                      themeProvider: themeProvider,
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Footnote Number Color
+                    _buildColorOption(
+                      context: context,
+                      title: 'Footnote Number Color',
+                      subtitle: 'Color for footnote references (¹), (²)...',
+                      currentColor: themeProvider.footnoteNumberColor,
+                      onColorSelected: (color) {
+                        themeProvider.setFootnoteNumberColor(color);
+                      },
+                      themeProvider: themeProvider,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
             
             const SizedBox(height: 16),
             
@@ -544,6 +599,102 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+  Widget _buildColorOption({
+    required BuildContext context,
+    required String title,
+    required String subtitle,
+    required Color currentColor,
+    required Function(Color) onColorSelected,
+    required ThemeProvider themeProvider,
+  }) {
+    final List<Color> colorOptions = [
+      Colors.blue.shade700,
+      Colors.lightBlue.shade600,
+      Colors.indigo.shade600,
+      Colors.cyan.shade700,
+      Colors.teal.shade700,
+      Colors.green.shade700,
+      Colors.purple.shade700,
+      Colors.deepPurple.shade600,
+      Colors.pink.shade700,
+      Colors.red.shade700,
+      Colors.orange.shade700,
+      Colors.amber.shade800,
+      Colors.brown.shade700,
+      Colors.blueGrey.shade700,
+      Colors.grey.shade700,
+    ];
+    
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).brightness == Brightness.dark
+            ? Colors.grey.shade800
+            : Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: themeProvider.primaryTextColor,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: TextStyle(
+              fontSize: 12,
+              color: themeProvider.secondaryTextColor,
+            ),
+          ),
+          const SizedBox(height: 12),
+          
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: colorOptions.map((color) {
+              final isSelected = currentColor.value == color.value;
+              return GestureDetector(
+                onTap: () => onColorSelected(color),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isSelected ? Colors.white : Colors.transparent,
+                      width: 3,
+                    ),
+                    boxShadow: [
+                      if (isSelected)
+                        BoxShadow(
+                          color: color.withOpacity(0.5),
+                          blurRadius: 8,
+                          spreadRadius: 2,
+                        ),
+                    ],
+                  ),
+                  child: isSelected
+                      ? const Icon(
+                          Icons.check,
+                          color: Colors.white,
+                          size: 20,
+                        )
+                      : null,
+                ),
+              );
+            }).toList(),
+          ),
+        ],
       ),
     );
   }

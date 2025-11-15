@@ -26,7 +26,7 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
   bool _removeDiacritics = false;
   
   // Cache for storing built pages
-  final Map<int, Widget> _pageCache = {};
+  final Map<String, Widget> _pageCache = {};  // Changed from Map<int, Widget> to Map<String, Widget>
   // Add this after _pageCache declaration
   final Set<int> _preloadedChapters = {};
   bool _isPreloading = false;
@@ -271,7 +271,7 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
           final globalChapter = index + 1;
           
           // Use cached page if available and settings haven't changed
-          final cacheKey = globalChapter;
+          final cacheKey = '$globalChapter-$_fontSize-$_fontFamily-$_removeDiacritics';
           if (_pageCache.containsKey(cacheKey)) {
             return _pageCache[cacheKey]!;
           }
@@ -295,8 +295,12 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
           
           // Limit cache size to prevent memory issues
           if (_pageCache.length > 10) {
+            // Remove old entries based on chapter number (extract from string key)
             final keysToRemove = _pageCache.keys
-                .where((key) => (key - currentGlobalChapter).abs() > 5)
+                .where((key) {
+                  final chapterNum = int.tryParse(key.split('-').first) ?? 0;
+                  return (chapterNum - currentGlobalChapter).abs() > 5;
+                })
                 .toList();
             for (var key in keysToRemove) {
               _pageCache.remove(key);
