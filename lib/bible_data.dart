@@ -11,73 +11,77 @@ class BibleData {
     {'name': 'Genesis', 'shortName': 'Gen', 'chapters': 50, 'fileName': 'Genesis.txt', 'arabicName': 'التكوين'},
     {'name': 'Exodus', 'shortName': 'Exod', 'chapters': 40, 'fileName': 'Exodus.txt', 'arabicName': 'الخروج'},
     {'name': 'Leviticus', 'shortName': 'Lev', 'chapters': 27, 'fileName': 'Leviticus.txt', 'arabicName': 'اللاويين'},
-    {'name': 'Numbers', 'shortName': 'Num', 'chapters': 36, 'fileName': 'Numbers.txt', 'arabicName': 'العدد'},
-    {'name': 'Deuteronomy', 'shortName': 'Deut', 'chapters': 34, 'fileName': 'Deuteronomy.txt', 'arabicName': 'التثنية'},
-    {'name': 'Joshua', 'shortName': 'Josh', 'chapters': 24, 'fileName': 'Joshua.txt', 'arabicName': 'يشوع'},
-    {'name': 'Judges', 'shortName': 'Judg', 'chapters': 21, 'fileName': 'Judges.txt', 'arabicName': 'القضاة'},
-    {'name': 'Ruth', 'shortName': 'Ruth', 'chapters': 4, 'fileName': 'Ruth.txt', 'arabicName': 'راعوث'},
-    {'name': '1 Samuel', 'shortName': '1 Sam', 'chapters': 31, 'fileName': '1Samuel.txt', 'arabicName': 'صموئيل الأول'},
+    {'name': 'Numbers', 'shortName': 'Num', 'chapters': 36, 'fileName': 'Numbers.txt', 'arabicName': 'العدد (في البرية)'},
+    {'name': 'Deuteronomy', 'shortName': 'Deut', 'chapters': 34, 'fileName': 'Deuteronomy.txt', 'arabicName': 'التثنية (او كلمات דְּבָרִים)'},
+    {'name': 'Joshua', 'shortName': 'Josh', 'chapters': 24, 'fileName': 'Joshua.txt', 'arabicName': 'يهوشع'},
+    {'name': 'Judges', 'shortName': 'Judg', 'chapters': 21, 'fileName': 'Judges.txt', 'arabicName': 'المدبرون'},
+    {'name': 'Ruth', 'shortName': 'Ruth', 'chapters': 4, 'fileName': 'Ruth.txt', 'arabicName': 'روث (راعوث)'},
+    {'name': '1 Samuel', 'shortName': '1 Sam', 'chapters': 31, 'fileName': '1Samuel.txt', 'arabicName': 'صموئيل الاول'},
     {'name': '2 Samuel', 'shortName': '2 Sam', 'chapters': 24, 'fileName': '2Samuel.txt', 'arabicName': 'صموئيل الثاني'},
-    {'name': '1 Kings', 'shortName': '1 Kgs', 'chapters': 22, 'fileName': '1Kings.txt', 'arabicName': 'الملوك الأول'},
-    {'name': '2 Kings', 'shortName': '2 Kgs', 'chapters': 25, 'fileName': '2Kings.txt', 'arabicName': 'الملوك الثاني'},
-    {'name': '1 Chronicles', 'shortName': '1 Chr', 'chapters': 29, 'fileName': '1Chronicles.txt', 'arabicName': 'أخبار الأيام الأول'},
-    {'name': '2 Chronicles', 'shortName': '2 Chr', 'chapters': 36, 'fileName': '2Chronicles.txt', 'arabicName': 'أخبار الأيام الثاني'},
+    {'name': '1 Kings', 'shortName': '1 Kgs', 'chapters': 22, 'fileName': '1Kings.txt', 'arabicName': 'ملوك الاول'},
+    {'name': '2 Kings', 'shortName': '2 Kgs', 'chapters': 25, 'fileName': '2Kings.txt', 'arabicName': 'ملوك الثاني'},
+    {'name': '1 Chronicles', 'shortName': '1 Chr', 'chapters': 29, 'fileName': '1Chronicles.txt', 'arabicName': 'كلام الايام الاول'},
+    {'name': '2 Chronicles', 'shortName': '2 Chr', 'chapters': 36, 'fileName': '2Chronicles.txt', 'arabicName': 'كلام الايام الثاني'},
     {'name': 'Ezra', 'shortName': 'Ezra', 'chapters': 10, 'fileName': 'Ezra.txt', 'arabicName': 'عزرا'},
-    {'name': 'Nehemiah', 'shortName': 'Neh', 'chapters': 13, 'fileName': 'Nehemiah.txt', 'arabicName': 'نحميا'},
-    {'name': 'Esther', 'shortName': 'Esth', 'chapters': 10, 'fileName': 'Esther.txt', 'arabicName': 'أستير'},
-    {'name': 'Job', 'shortName': 'Job', 'chapters': 42, 'fileName': 'Job.txt', 'arabicName': 'أيوب'},
+    {'name': 'Nehemiah', 'shortName': 'Neh', 'chapters': 13, 'fileName': 'Nehemiah.txt', 'arabicName': 'نحمياه'},
+    {'name': 'Esther', 'shortName': 'Esth', 'chapters': 10, 'fileName': 'Esther.txt', 'arabicName': 'استير'},
+    {'name': 'Job', 'shortName': 'Job', 'chapters': 42, 'fileName': 'Job.txt', 'arabicName': 'ايوب'},
     {'name': 'Psalms', 'shortName': 'Ps', 'chapters': 150, 'fileName': 'Psalms.txt', 'arabicName': 'المزامير'},
-    {'name': 'Proverbs', 'shortName': 'Prov', 'chapters': 31, 'fileName': 'Proverbs.txt', 'arabicName': 'الأمثال'},
-    {'name': 'Ecclesiastes', 'shortName': 'Eccl', 'chapters': 12, 'fileName': 'Ecclesiastes.txt', 'arabicName': 'الجامعة'},
-    {'name': 'Song of Solomon', 'shortName': 'Song', 'chapters': 8, 'fileName': 'SongOfSolomon.txt', 'arabicName': 'نشيد الأنشاد'},
-    {'name': 'Isaiah', 'shortName': 'Isa', 'chapters': 66, 'fileName': 'Isaiah.txt', 'arabicName': 'إشعياء'},
-    {'name': 'Jeremiah', 'shortName': 'Jer', 'chapters': 52, 'fileName': 'Jeremiah.txt', 'arabicName': 'إرميا'},
-    {'name': 'Lamentations', 'shortName': 'Lam', 'chapters': 5, 'fileName': 'Lamentations.txt', 'arabicName': 'مراثي إرميا'},
-    {'name': 'Ezekiel', 'shortName': 'Ezek', 'chapters': 48, 'fileName': 'Ezekiel.txt', 'arabicName': 'حزقيال'},
+    {'name': 'Proverbs', 'shortName': 'Prov', 'chapters': 31, 'fileName': 'Proverbs.txt', 'arabicName': 'الامثال'},
+    {'name': 'Ecclesiastes', 'shortName': 'Eccl', 'chapters': 12, 'fileName': 'Ecclesiastes.txt', 'arabicName': 'كوهلت (جامع الحكمة)'},
+    {'name': 'Song of Solomon', 'shortName': 'Song', 'chapters': 8, 'fileName': 'SongOfSolomon.txt', 'arabicName': 'اغنية الاغاني'},
+    {'name': 'Isaiah', 'shortName': 'Isa', 'chapters': 66, 'fileName': 'Isaiah.txt', 'arabicName': 'يشعياهو'},
+    {'name': 'Jeremiah', 'shortName': 'Jer', 'chapters': 52, 'fileName': 'Jeremiah.txt', 'arabicName': 'يرمياهو'},
+    {'name': 'Lamentations', 'shortName': 'Lam', 'chapters': 5, 'fileName': 'Lamentations.txt', 'arabicName': 'مراثي يرمياهو'},
+    {'name': 'Ezekiel', 'shortName': 'Ezek', 'chapters': 48, 'fileName': 'Ezekiel.txt', 'arabicName': 'يحزقئيل'},
     {'name': 'Daniel', 'shortName': 'Dan', 'chapters': 12, 'fileName': 'Daniel.txt', 'arabicName': 'دانيال'},
     {'name': 'Hosea', 'shortName': 'Hos', 'chapters': 14, 'fileName': 'Hosea.txt', 'arabicName': 'هوشع'},
     {'name': 'Joel', 'shortName': 'Joel', 'chapters': 3, 'fileName': 'Joel.txt', 'arabicName': 'يوئيل'},
     {'name': 'Amos', 'shortName': 'Amos', 'chapters': 9, 'fileName': 'Amos.txt', 'arabicName': 'عاموس'},
-    {'name': 'Obadiah', 'shortName': 'Obad', 'chapters': 1, 'fileName': 'Obadiah.txt', 'arabicName': 'عوبديا'},
+    {'name': 'Obadiah', 'shortName': 'Obad', 'chapters': 1, 'fileName': 'Obadiah.txt', 'arabicName': 'عوبدياه'},
     {'name': 'Jonah', 'shortName': 'Jonah', 'chapters': 4, 'fileName': 'Jonah.txt', 'arabicName': 'يونان'},
     {'name': 'Micah', 'shortName': 'Mic', 'chapters': 7, 'fileName': 'Micah.txt', 'arabicName': 'ميخا'},
     {'name': 'Nahum', 'shortName': 'Nah', 'chapters': 3, 'fileName': 'Nahum.txt', 'arabicName': 'ناحوم'},
     {'name': 'Habakkuk', 'shortName': 'Hab', 'chapters': 3, 'fileName': 'Habakkuk.txt', 'arabicName': 'حبقوق'},
-    {'name': 'Zephaniah', 'shortName': 'Zeph', 'chapters': 3, 'fileName': 'Zephaniah.txt', 'arabicName': 'صفنيا'},
+    {'name': 'Zephaniah', 'shortName': 'Zeph', 'chapters': 3, 'fileName': 'Zephaniah.txt', 'arabicName': 'صفنياه'},
     {'name': 'Haggai', 'shortName': 'Hag', 'chapters': 2, 'fileName': 'Haggai.txt', 'arabicName': 'حجي'},
-    {'name': 'Zechariah', 'shortName': 'Zech', 'chapters': 14, 'fileName': 'Zechariah.txt', 'arabicName': 'زكريا'},
-    {'name': 'Malachi', 'shortName': 'Mal', 'chapters': 4, 'fileName': 'Malachi.txt', 'arabicName': 'ملاخي'},
-    {'name': 'Matthew', 'shortName': 'Matt', 'chapters': 28, 'fileName': 'Matthew.txt', 'arabicName': 'إنجيل متى'},
-    {'name': 'Mark', 'shortName': 'Mark', 'chapters': 16, 'fileName': 'Mark.txt', 'arabicName': 'إنجيل مرقس'},
-    {'name': 'Luke', 'shortName': 'Luke', 'chapters': 24, 'fileName': 'Luke.txt', 'arabicName': 'إنجيل لوقا'},
-    {'name': 'John', 'shortName': 'John', 'chapters': 21, 'fileName': 'John.txt', 'arabicName': 'إنجيل يوحنا'},
-    {'name': 'Acts', 'shortName': 'Acts', 'chapters': 28, 'fileName': 'Acts.txt', 'arabicName': 'أعمال الرسل'},
-    {'name': 'Romans', 'shortName': 'Rom', 'chapters': 16, 'fileName': 'Romans.txt', 'arabicName': 'رسالة رومية'},
-    {'name': '1 Corinthians', 'shortName': '1 Cor', 'chapters': 16, 'fileName': '1Corinthians.txt', 'arabicName': 'كورنثوس الأولى'},
-    {'name': '2 Corinthians', 'shortName': '2 Cor', 'chapters': 13, 'fileName': '2Corinthians.txt', 'arabicName': 'كورنثوس الثانية'},
-    {'name': 'Galatians', 'shortName': 'Gal', 'chapters': 6, 'fileName': 'Galatians.txt', 'arabicName': 'غلاطية'},
-    {'name': 'Ephesians', 'shortName': 'Eph', 'chapters': 6, 'fileName': 'Ephesians.txt', 'arabicName': 'أفسس'},
-    {'name': 'Philippians', 'shortName': 'Phil', 'chapters': 4, 'fileName': 'Philippians.txt', 'arabicName': 'فيلبي'},
-    {'name': 'Colossians', 'shortName': 'Col', 'chapters': 4, 'fileName': 'Colossians.txt', 'arabicName': 'كولوسي'},
-    {'name': '1 Thessalonians', 'shortName': '1 Thess', 'chapters': 5, 'fileName': '1Thessalonians.txt', 'arabicName': 'تسالونيكي الأولى'},
-    {'name': '2 Thessalonians', 'shortName': '2 Thess', 'chapters': 3, 'fileName': '2Thessalonians.txt', 'arabicName': 'تسالونيكي الثانية'},
-    {'name': '1 Timothy', 'shortName': '1 Tim', 'chapters': 6, 'fileName': '1Timothy.txt', 'arabicName': 'تيموثاوس الأولى'},
-    {'name': '2 Timothy', 'shortName': '2 Tim', 'chapters': 4, 'fileName': '2Timothy.txt', 'arabicName': 'تيموثاوس الثانية'},
-    {'name': 'Titus', 'shortName': 'Titus', 'chapters': 3, 'fileName': 'Titus.txt', 'arabicName': 'تيطس'},
-    {'name': 'Philemon', 'shortName': 'Phlm', 'chapters': 1, 'fileName': 'Philemon.txt', 'arabicName': 'فليمون'},
-    {'name': 'Hebrews', 'shortName': 'Heb', 'chapters': 13, 'fileName': 'Hebrews.txt', 'arabicName': 'العبرانيين'},
-    {'name': 'James', 'shortName': 'Jas', 'chapters': 5, 'fileName': 'James.txt', 'arabicName': 'يعقوب'},
-    {'name': '1 Peter', 'shortName': '1 Pet', 'chapters': 5, 'fileName': '1Peter.txt', 'arabicName': 'بطرس الأولى'},
-    {'name': '2 Peter', 'shortName': '2 Pet', 'chapters': 3, 'fileName': '2Peter.txt', 'arabicName': 'بطرس الثانية'},
-    {'name': '1 John', 'shortName': '1 John', 'chapters': 5, 'fileName': '1John.txt', 'arabicName': 'يوحنا الأولى'},
-    {'name': '2 John', 'shortName': '2 John', 'chapters': 1, 'fileName': '2John.txt', 'arabicName': 'يوحنا الثانية'},
-    {'name': '3 John', 'shortName': '3 John', 'chapters': 1, 'fileName': '3John.txt', 'arabicName': 'يوحنا الثالثة'},
-    {'name': 'Jude', 'shortName': 'Jude', 'chapters': 1, 'fileName': 'Jude.txt', 'arabicName': 'يهوذا'},
-    {'name': 'Revelation', 'shortName': 'Rev', 'chapters': 22, 'fileName': 'Revelation.txt', 'arabicName': 'الرؤيا'},
+    {'name': 'Zechariah', 'shortName': 'Zech', 'chapters': 14, 'fileName': 'Zechariah.txt', 'arabicName': 'زكرياه'},
+    {'name': 'Malachi', 'shortName': 'Mal', 'chapters': 4, 'fileName': 'Malachi.txt', 'arabicName': 'ملاخي (ملاكي او مبعوتهي)'},
+    {'name': 'Matthew', 'shortName': 'Matt', 'chapters': 28, 'fileName': 'Matthew.txt', 'arabicName': 'نص انجيل متى الرسول'},
+    {'name': 'Mark', 'shortName': 'Mark', 'chapters': 16, 'fileName': 'Mark.txt', 'arabicName': 'نص انجيل مرقس الرسول'},
+    {'name': 'Luke', 'shortName': 'Luke', 'chapters': 24, 'fileName': 'Luke.txt', 'arabicName': 'البشارة (الانجيل) بحسب الرسول لوقا'},
+    {'name': 'John', 'shortName': 'John', 'chapters': 21, 'fileName': 'John.txt', 'arabicName': 'البشارة (الانجيل) بحسب الرسول يوحنا'},
+    {'name': 'Acts', 'shortName': 'Acts', 'chapters': 28, 'fileName': 'Acts.txt', 'arabicName': 'سفر اعمال الروح القدس'},
+    {'name': 'Romans', 'shortName': 'Rom', 'chapters': 16, 'fileName': 'Romans.txt', 'arabicName': 'رسالة بولس الرسول الى اهل رروما'},
+    {'name': '1 Corinthians', 'shortName': '1 Cor', 'chapters': 16, 'fileName': '1Corinthians.txt', 'arabicName': 'رسالة بولس الرسول الاولى الى اهل كورنثوس'},
+    {'name': '2 Corinthians', 'shortName': '2 Cor', 'chapters': 13, 'fileName': '2Corinthians.txt', 'arabicName': 'رسالة بولس الرسول الثانية الى اهل كورنثوس'},
+    {'name': 'Galatians', 'shortName': 'Gal', 'chapters': 6, 'fileName': 'Galatians.txt', 'arabicName': 'رسالة بولس الرسول الى اهل غلاطية'},
+    {'name': 'Ephesians', 'shortName': 'Eph', 'chapters': 6, 'fileName': 'Ephesians.txt', 'arabicName': 'رسالة بولس الرسول الى اهل افسس'},
+    {'name': 'Philippians', 'shortName': 'Phil', 'chapters': 4, 'fileName': 'Philippians.txt', 'arabicName': 'رسالة بولس الرسول الى اهل فيلبي'},
+    {'name': 'Colossians', 'shortName': 'Col', 'chapters': 4, 'fileName': 'Colossians.txt', 'arabicName': 'رسالة بولس الرسول الى اهل كولوسي'},
+    {'name': '1 Thessalonians', 'shortName': '1 Thess', 'chapters': 5, 'fileName': '1Thessalonians.txt', 'arabicName': 'رسالة بولس الرسول الاولى الى اهل تسالونيكي'},
+    {'name': '2 Thessalonians', 'shortName': '2 Thess', 'chapters': 3, 'fileName': '2Thessalonians.txt', 'arabicName': 'رسالة بولس الرسول الثانية الى اهل تسالونيكي'},
+    {'name': '1 Timothy', 'shortName': '1 Tim', 'chapters': 6, 'fileName': '1Timothy.txt', 'arabicName': 'رسالة بولس الرسول الاولى الى تيموثاوس'},
+    {'name': '2 Timothy', 'shortName': '2 Tim', 'chapters': 4, 'fileName': '2Timothy.txt', 'arabicName': 'رسالة بولس الرسول الثانية الى تيموثاوس'},
+    {'name': 'Titus', 'shortName': 'Titus', 'chapters': 3, 'fileName': 'Titus.txt', 'arabicName': 'رسالة بولس الرسول الى تيطس'},
+    {'name': 'Philemon', 'shortName': 'Phlm', 'chapters': 1, 'fileName': 'Philemon.txt', 'arabicName': 'رسالة بولس الرسول الى فيليمون'},
+    {'name': 'Hebrews', 'shortName': 'Heb', 'chapters': 13, 'fileName': 'Hebrews.txt', 'arabicName': 'الرسالة الى العبرانيين'},
+    {'name': 'James', 'shortName': 'Jas', 'chapters': 5, 'fileName': 'James.txt', 'arabicName': 'رسالة يعقوب'},
+    {'name': '1 Peter', 'shortName': '1 Pet', 'chapters': 5, 'fileName': '1Peter.txt', 'arabicName': 'رسالة بطرس الرسول الاولى'},
+    {'name': '2 Peter', 'shortName': '2 Pet', 'chapters': 3, 'fileName': '2Peter.txt', 'arabicName': 'رسالة بطرس الرسول الثانية'},
+    {'name': '1 John', 'shortName': '1 John', 'chapters': 5, 'fileName': '1John.txt', 'arabicName': 'رسالة يوحنا الرسول الاولى'},
+    {'name': '2 John', 'shortName': '2 John', 'chapters': 1, 'fileName': '2John.txt', 'arabicName': 'رسالة يوحنا الرسول الثانية'},
+    {'name': '3 John', 'shortName': '3 John', 'chapters': 1, 'fileName': '3John.txt', 'arabicName': 'رسالة يوحنا الرسول الثالثة'},
+    {'name': 'Jude', 'shortName': 'Jude', 'chapters': 1, 'fileName': 'Jude.txt', 'arabicName': 'رسالة يهوذا'},
+    {'name': 'Revelation', 'shortName': 'Rev', 'chapters': 22, 'fileName': 'Revelation.txt', 'arabicName': 'رؤيا يوحنا اللاهوتي'},
   ];
 
   static Map<String, Map<int, String>> _bookCache = {};
   static Map<String, Map<int, String>> _footnotesCache = {};
+  static final Map<String, Future<Map<int, String>>> _loadingBooks = {};
+
+  static final Map<String, Future<Map<int, String>>> _loadingFootnotes = {};
+
 
   static int getTotalChapters() {
     int total = 0;
@@ -178,69 +182,76 @@ class BibleData {
   static Future<String> getChapterContent(int bookIndex, int chapterNumber) async {
     final book = books[bookIndex];
     final fileName = book['fileName'];
-    final bookName = book['name'];
-    final arabicName = book['arabicName'];
-
+    
+    // Return from cache if available
     if (_bookCache.containsKey(fileName) && _bookCache[fileName]!.containsKey(chapterNumber)) {
       return _bookCache[fileName]![chapterNumber]!;
     }
 
-    String? content;
-    bool foundContent = false;
-    
+    // If already loading this book, wait for it
+    if (_loadingBooks.containsKey(fileName)) {
+      final chapters = await _loadingBooks[fileName]!;
+      return chapters[chapterNumber] ?? 'This book isn\'t available yet';
+    }
+
+    // Start loading the book
+    final loadFuture = _loadAndCacheBook(fileName, book['name'], book['arabicName']);
+    _loadingBooks[fileName] = loadFuture;
+
     try {
-      if (!kIsWeb) {
-        final bibleDocsPath = await getBibleDocsPath();
-        final externalFile = File('$bibleDocsPath/$fileName');
-        
-        print('Looking for file at: ${externalFile.path}');
-        print('File exists: ${await externalFile.exists()}');
-        
-        if (await externalFile.exists()) {
-          try {
-            content = await externalFile.readAsString();
-            foundContent = true;
-            print('✅ Successfully loaded from external storage: $fileName');
-          } catch (e) {
-            print('❌ Error reading file $fileName: $e');
-          }
-        } else {
-          print('❌ File not found in external storage: $fileName');
-        }
-      }
-      
-      if (!foundContent) {
-        try {
-          content = await rootBundle.loadString('assets/bible_docs/$fileName');
-          foundContent = true;
-          print('✅ Loaded from assets: $fileName');
-        } catch (e) {
-          print('❌ File not found in assets: assets/bible_docs/$fileName');
-        }
-      }
-      
-      if (!foundContent) {
-        if (!kIsWeb) {
-          await createMissingBookFile(fileName, bookName, arabicName);
-        }
-        return 'This book isn\'t available yet';
-      }
-      
-      final chapters = _parseDocumentContent(content!);
-      
-      _bookCache[fileName] = chapters;
-      
-      if (chapters.containsKey(chapterNumber)) {
-        return chapters[chapterNumber]!;
-      } else {
-        return 'This book isn\'t available yet';
-      }
-      
-    } catch (e) {
-      print('❌ Error loading chapter: $e');
-      return 'This book isn\'t available yet';
+      final chapters = await loadFuture;
+      return chapters[chapterNumber] ?? 'This book isn\'t available yet';
+    } finally {
+      _loadingBooks.remove(fileName);
     }
   }
+
+// Add this NEW method right after getChapterContent (around line 180)
+static Future<Map<int, String>> _loadAndCacheBook(String fileName, String bookName, String arabicName) async {
+  String? content;
+  bool foundContent = false;
+  
+  try {
+    if (!kIsWeb) {
+      final bibleDocsPath = await getBibleDocsPath();
+      final externalFile = File('$bibleDocsPath/$fileName');
+      
+      if (await externalFile.exists()) {
+        try {
+          content = await externalFile.readAsString();
+          foundContent = true;
+        } catch (e) {
+          print('❌ Error reading file $fileName: $e');
+        }
+      }
+    }
+    
+    if (!foundContent) {
+      try {
+        content = await rootBundle.loadString('assets/bible_docs/$fileName');
+        foundContent = true;
+      } catch (e) {
+        print('❌ File not found in assets: assets/bible_docs/$fileName');
+      }
+    }
+    
+    if (!foundContent) {
+      if (!kIsWeb) {
+        await createMissingBookFile(fileName, bookName, arabicName);
+      }
+      return {1: 'This book isn\'t available yet'};
+    }
+    
+    final chapters = _parseDocumentContent(content!);
+    _bookCache[fileName] = chapters;
+    
+    return chapters;
+    
+  } catch (e) {
+    print('❌ Error loading book: $e');
+    return {1: 'This book isn\'t available yet'};
+  }
+}
 
   static Future<String> getBibleDocsPath() async {
     if (kIsWeb) {
@@ -518,13 +529,32 @@ class BibleData {
 static Future<String> getChapterFootnotes(int bookIndex, int chapterNumber) async {
   final book = books[bookIndex];
   final fileName = book['fileName'].replaceAll('.txt', '_footnotes.txt');
-  final bookName = book['name'];
-  final arabicName = book['arabicName'];
-
+  
+  // Return from cache if available
   if (_footnotesCache.containsKey(fileName) && _footnotesCache[fileName]!.containsKey(chapterNumber)) {
     return _footnotesCache[fileName]![chapterNumber]!;
   }
 
+  // If already loading, wait for it
+  if (_loadingFootnotes.containsKey(fileName)) {
+    final chapters = await _loadingFootnotes[fileName]!;
+    return chapters[chapterNumber] ?? '';
+  }
+
+  // Start loading
+  final loadFuture = _loadAndCacheFootnotes(fileName);
+  _loadingFootnotes[fileName] = loadFuture;
+
+  try {
+    final chapters = await loadFuture;
+    return chapters[chapterNumber] ?? '';
+  } finally {
+    _loadingFootnotes.remove(fileName);
+  }
+}
+
+// Add this NEW method right after getChapterFootnotes
+static Future<Map<int, String>> _loadAndCacheFootnotes(String fileName) async {
   String? content;
   bool foundContent = false;
 
@@ -542,17 +572,13 @@ static Future<String> getChapterFootnotes(int bookIndex, int chapterNumber) asyn
       content = await rootBundle.loadString('assets/bible_docs/$fileName');
       foundContent = true;
     } catch (e) {
-      return '';
+      return {};
     }
   }
 
   final chapters = _parseDocumentContent(content!, formatVerses: false);
-
-
   _footnotesCache[fileName] = chapters;
-
-  // Return empty string if chapter doesn't have footnotes, not null
-  return chapters[chapterNumber] ?? '';
+  return chapters;
 }
 
   static String _formatVerses(String content) {
@@ -593,5 +619,88 @@ static Future<String> getChapterFootnotes(int bookIndex, int chapterNumber) asyn
     String cleanQuery = removeTashkeel(query.toLowerCase());
     
     return cleanContent.contains(cleanQuery);
+  }
+  // Get books in Old Testament (indices 0-38)
+  static List<int> getOldTestamentIndices() {
+    return List.generate(39, (index) => index);
+  }
+
+  // Get books in New Testament (indices 39-65)
+  static List<int> getNewTestamentIndices() {
+    return List.generate(27, (index) => index + 39);
+  }
+
+  // Parse reference like "تكوين 3:2" or "Genesis 3:2" into bookIndex, chapter, verse
+  static Map<String, int>? parseReference(String reference) {
+    reference = reference.trim();
+    
+    // Remove diacritics for matching
+    String cleanRef = removeTashkeel(reference.toLowerCase());
+    
+    // Try to match book name
+    int? bookIndex;
+    String remainder = '';
+    
+    for (int i = 0; i < books.length; i++) {
+      String bookName = books[i]['name'].toLowerCase();
+      String arabicName = removeTashkeel(books[i]['arabicName'].toLowerCase());
+      String shortName = books[i]['shortName'].toLowerCase();
+      
+      if (cleanRef.startsWith(arabicName)) {
+        bookIndex = i;
+        remainder = reference.substring(books[i]['arabicName'].length).trim();
+        break;
+      } else if (cleanRef.startsWith(bookName)) {
+        bookIndex = i;
+        remainder = reference.substring(bookName.length).trim();
+        break;
+      } else if (cleanRef.startsWith(shortName)) {
+        bookIndex = i;
+        remainder = reference.substring(books[i]['shortName'].length).trim();
+        break;
+      }
+    }
+    
+    if (bookIndex == null) return null;
+    
+    // Parse chapter and verse
+    // Format: "3:2" or "3" or ":2"
+    int? chapter;
+    int? verse;
+    
+    if (remainder.isEmpty) {
+      // Just book name, return chapter 1
+      return {'bookIndex': bookIndex, 'chapter': 1};
+    }
+    
+    // Match patterns like "3:2", "3", or ":2"
+    RegExp refPattern = RegExp(r'^(\d+)?:?(\d+)?$');
+    Match? match = refPattern.firstMatch(remainder);
+    
+    if (match != null) {
+      String? chapterStr = match.group(1);
+      String? verseStr = match.group(2);
+      
+      if (chapterStr != null) {
+        chapter = int.tryParse(chapterStr);
+      }
+      if (verseStr != null) {
+        verse = int.tryParse(verseStr);
+      }
+      
+      // Validate chapter exists in book
+      if (chapter != null && chapter > 0 && chapter <= books[bookIndex]['chapters']) {
+        Map<String, int> result = {
+          'bookIndex': bookIndex,
+          'chapter': chapter,
+        };
+        if (verse != null && verse > 0) {
+          result['verse'] = verse;
+        }
+        return result;
+      }
+    }
+    
+    return null;
   }
 }

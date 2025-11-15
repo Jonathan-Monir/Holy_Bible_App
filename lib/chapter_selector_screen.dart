@@ -1,4 +1,6 @@
 // lib/chapter_selector_screen.dart
+import 'search_screen.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'bible_data.dart';
@@ -142,195 +144,256 @@ class _ChapterSelectorScreenState extends State<ChapterSelectorScreen>
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Select Book',
-          style: TextStyle(color: themeProvider.primaryTextColor),
-        ),
-        bottom: TabBar(
-          controller: _tabController,
-          labelStyle: TextStyle(fontWeight: FontWeight.bold),
-          unselectedLabelStyle: TextStyle(fontWeight: FontWeight.normal),
-          tabs: [
-            Tab(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.library_books, size: 18),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        const Text(
-                          'Old Testament',
-                          style: TextStyle(fontSize: 11),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        Text(
-                          '${oldTestamentBooks.length} books',
-                          style: const TextStyle(fontSize: 9),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+    return WillPopScope(
+      onWillPop: () async {
+        final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+        
+        // Show exit confirmation dialog
+        final shouldExit = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: Theme.of(context).cardColor,
+            title: Text(
+              'Exit App',
+              style: TextStyle(color: themeProvider.primaryTextColor),
             ),
-            Tab(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.auto_stories, size: 18),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        const Text(
-                          'New Testament',
-                          style: TextStyle(fontSize: 11),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        Text(
-                          '${newTestamentBooks.length} books',
-                          style: const TextStyle(fontSize: 9),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+            content: Text(
+              'Do you want to exit the application?',
+              style: TextStyle(color: themeProvider.primaryTextColor),
             ),
-          ],
-          labelColor: Theme.of(context).primaryColor,
-          unselectedLabelColor: themeProvider.secondaryTextColor,
-          indicatorColor: Theme.of(context).primaryColor,
-          indicatorWeight: 3,
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          // Old Testament
-          Column(
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? Colors.grey.shade900
-                    : Colors.grey.shade50,
-                child: Column(
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(color: themeProvider.secondaryTextColor),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Exit'),
+              ),
+            ],
+          ),
+        );
+        
+        if (shouldExit == true) {
+          SystemNavigator.pop();
+          return false;
+        }
+        return false;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(
+            'Select Book',
+            style: TextStyle(color: themeProvider.primaryTextColor),
+          ),
+          automaticallyImplyLeading: false, // Remove back button since this is home
+          bottom: TabBar(
+            controller: _tabController,
+            labelStyle: TextStyle(fontWeight: FontWeight.bold),
+            unselectedLabelStyle: TextStyle(fontWeight: FontWeight.normal),
+            tabs: [
+              Tab(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      Icons.library_books,
-                      size: 28,
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? Colors.brown.shade300
-                          : Colors.brown.shade600,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Old Testament',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).brightness == Brightness.dark
-                            ? Colors.brown.shade300
-                            : Colors.brown.shade800,
+                    const Icon(Icons.library_books, size: 18),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          const Text(
+                            'Old Testament',
+                            style: TextStyle(fontSize: 11),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            '${oldTestamentBooks.length} books',
+                            style: const TextStyle(fontSize: 9),
+                          ),
+                        ],
                       ),
                     ),
-                    Text(
-                      'العهد القديم',
-                      style: TextStyle(
-                        fontSize: 14,
+                  ],
+                ),
+              ),
+              Tab(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.auto_stories, size: 18),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          const Text(
+                            'New Testament',
+                            style: TextStyle(fontSize: 11),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            '${newTestamentBooks.length} books',
+                            style: const TextStyle(fontSize: 9),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            labelColor: Theme.of(context).primaryColor,
+            unselectedLabelColor: themeProvider.secondaryTextColor,
+            indicatorColor: Theme.of(context).primaryColor,
+            indicatorWeight: 3,
+          ),
+          actions: [
+            IconButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => SearchScreen(
+                      onChapterSelected: (chapter) {
+                        widget.onChapterSelected(chapter);
+                        Navigator.pop(context); // Close search screen
+                      },
+                    ),
+                  ),
+                );
+              },
+              icon: Icon(Icons.search, color: Theme.of(context).primaryColor),
+              tooltip: 'Search Bible',
+            ),
+          ],
+        ),
+        body: TabBarView(
+          controller: _tabController,
+          children: [
+            // Old Testament
+            Column(
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey.shade900
+                      : Colors.grey.shade50,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.library_books,
+                        size: 28,
                         color: Theme.of(context).brightness == Brightness.dark
                             ? Colors.brown.shade300
                             : Colors.brown.shade600,
-                        fontFamily: 'Amiri',
                       ),
-                      textDirection: TextDirection.rtl,
-                    ),
-                    Text(
-                      'Genesis to Malachi',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: themeProvider.secondaryTextColor,
+                      const SizedBox(height: 6),
+                      Text(
+                        'Old Testament',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.brown.shade300
+                              : Colors.brown.shade800,
+                        ),
                       ),
-                    ),
-                  ],
+                      Text(
+                        'العهد القديم',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.brown.shade300
+                              : Colors.brown.shade600,
+                          fontFamily: 'Amiri',
+                        ),
+                        textDirection: TextDirection.rtl,
+                      ),
+                      Text(
+                        'Genesis to Malachi',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: themeProvider.secondaryTextColor,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              Expanded(
-                child: _buildBooksList(oldTestamentBooks, 0),
-              ),
-            ],
-          ),
-          
-          // New Testament
-          Column(
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? Colors.grey.shade900
-                    : Colors.grey.shade50,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.auto_stories,
-                      size: 28,
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? Colors.indigo.shade300
-                          : Colors.indigo.shade600,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'New Testament',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).brightness == Brightness.dark
-                            ? Colors.indigo.shade300
-                            : Colors.indigo.shade800,
-                      ),
-                    ),
-                    Text(
-                      'العهد الجديد',
-                      style: TextStyle(
-                        fontSize: 14,
+                Expanded(
+                  child: _buildBooksList(oldTestamentBooks, 0),
+                ),
+              ],
+            ),
+            
+            // New Testament
+            Column(
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey.shade900
+                      : Colors.grey.shade50,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.auto_stories,
+                        size: 28,
                         color: Theme.of(context).brightness == Brightness.dark
                             ? Colors.indigo.shade300
                             : Colors.indigo.shade600,
-                        fontFamily: 'Amiri',
                       ),
-                      textDirection: TextDirection.rtl,
-                    ),
-                    Text(
-                      'Matthew to Revelation',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: themeProvider.secondaryTextColor,
+                      const SizedBox(height: 6),
+                      Text(
+                        'New Testament',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.indigo.shade300
+                              : Colors.indigo.shade800,
+                        ),
                       ),
-                    ),
-                  ],
+                      Text(
+                        'العهد الجديد',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.indigo.shade300
+                              : Colors.indigo.shade600,
+                          fontFamily: 'Amiri',
+                        ),
+                        textDirection: TextDirection.rtl,
+                      ),
+                      Text(
+                        'Matthew to Revelation',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: themeProvider.secondaryTextColor,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              Expanded(
-                child: _buildBooksList(newTestamentBooks, oldTestamentCount),
-              ),
-            ],
-          ),
-        ],
+                Expanded(
+                  child: _buildBooksList(newTestamentBooks, oldTestamentCount),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

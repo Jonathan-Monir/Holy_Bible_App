@@ -1,4 +1,6 @@
 // lib/book_chapter_selector.dart
+import 'search_screen.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'bible_data.dart';
@@ -52,6 +54,31 @@ class BookChapterSelector extends StatelessWidget {
           ),
           textDirection: TextDirection.rtl,
         ),
+        actions: [
+          IconButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SearchScreen(
+                    onChapterSelected: (chapter) {
+                      onChapterSelected(chapter);
+                      // Navigate to reader with selected chapter
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => MainReaderScreen(initialChapter: chapter),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              );
+            },
+            icon: Icon(Icons.search, color: Theme.of(context).primaryColor),
+            tooltip: 'Search Bible',
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -84,12 +111,11 @@ class BookChapterSelector extends StatelessWidget {
                   return GestureDetector(
                     onTap: () {
                       onChapterSelected(globalChapter);
-                      Navigator.pushAndRemoveUntil(
+                      Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => MainReaderScreen(initialChapter: globalChapter),
                         ),
-                        (route) => false,
                       );
                     },
                     child: Container(

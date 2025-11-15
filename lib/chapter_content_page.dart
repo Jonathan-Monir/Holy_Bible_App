@@ -76,40 +76,50 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   String get _chapterKey => '${widget.bookIndex}_${widget.chapterNumber}';
 
   Future<void> _loadSavedData() async {
+    // Load chapter content FIRST (it might already be cached)
+    final contentFuture = _loadChapterContent();
+    
+    // Load highlights in parallel (non-blocking)
     try {
       final prefs = await SharedPreferences.getInstance();
       
       final highlightedData = prefs.getString('highlighted_ranges') ?? '{}';
-      final highlightedMap = json.decode(highlightedData) as Map<String, dynamic>;
-      highlightedRanges = {};
-      for (String key in highlightedMap.keys) {
-        final chapterMap = highlightedMap[key] as Map<String, dynamic>;
-        highlightedRanges[key] = {};
-        for (String verseStr in chapterMap.keys) {
-          int verseNum = int.parse(verseStr);
-          final rangesList = chapterMap[verseStr] as List<dynamic>;
-          highlightedRanges[key]![verseNum] = rangesList.map((r) => TextRange(start: r['start'], end: r['end'])).toList();
-        }
-      }
-      
       final underlinedData = prefs.getString('underlined_ranges') ?? '{}';
-      final underlinedMap = json.decode(underlinedData) as Map<String, dynamic>;
-      underlinedRanges = {};
-      for (String key in underlinedMap.keys) {
-        final chapterMap = underlinedMap[key] as Map<String, dynamic>;
-        underlinedRanges[key] = {};
-        for (String verseStr in chapterMap.keys) {
-          int verseNum = int.parse(verseStr);
-          final rangesList = chapterMap[verseStr] as List<dynamic>;
-          underlinedRanges[key]![verseNum] = rangesList.map((r) => TextRange(start: r['start'], end: r['end'])).toList();
+      
+      // Only parse if not empty
+      if (highlightedData != '{}') {
+        final highlightedMap = json.decode(highlightedData) as Map<String, dynamic>;
+        highlightedRanges = {};
+        for (String key in highlightedMap.keys) {
+          final chapterMap = highlightedMap[key] as Map<String, dynamic>;
+          highlightedRanges[key] = {};
+          for (String verseStr in chapterMap.keys) {
+            int verseNum = int.parse(verseStr);
+            final rangesList = chapterMap[verseStr] as List<dynamic>;
+            highlightedRanges[key]![verseNum] = rangesList.map((r) => TextRange(start: r['start'], end: r['end'])).toList();
+          }
         }
       }
       
-      await _loadChapterContent();
+      if (underlinedData != '{}') {
+        final underlinedMap = json.decode(underlinedData) as Map<String, dynamic>;
+        underlinedRanges = {};
+        for (String key in underlinedMap.keys) {
+          final chapterMap = underlinedMap[key] as Map<String, dynamic>;
+          underlinedRanges[key] = {};
+          for (String verseStr in chapterMap.keys) {
+            int verseNum = int.parse(verseStr);
+            final rangesList = chapterMap[verseStr] as List<dynamic>;
+            underlinedRanges[key]![verseNum] = rangesList.map((r) => TextRange(start: r['start'], end: r['end'])).toList();
+          }
+        }
+      }
     } catch (e) {
-      print('Error loading saved data: $e');
-      await _loadChapterContent();
+      print('Error loading highlights: $e');
     }
+    
+    // Wait for content to finish loading
+    await contentFuture;
   }
 
   Future<void> _saveHighlightedRanges() async {
@@ -193,8 +203,10 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
 
   Future<void> _loadChapterContent() async {
     try {
+      // These calls should now be instant if preloaded
       final content = await BibleData.getChapterContent(widget.bookIndex, widget.chapterNumber);
       final fn = await BibleData.getChapterFootnotes(widget.bookIndex, widget.chapterNumber);
+      
       if (mounted) {
         setState(() {
           chapterContent = content;

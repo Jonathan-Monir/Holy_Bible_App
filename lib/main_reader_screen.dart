@@ -24,14 +24,27 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
   double _fontSize = 18.0;
   String _fontFamily = 'Amiri';
   bool _removeDiacritics = false;
-  Set<int> loadedPages = {};
+  
+  // Cache for storing built pages
+  final Map<int, Widget> _pageCache = {};
+  // Add this after _pageCache declaration
+  final Set<int> _preloadedChapters = {};
+  bool _isPreloading = false;
 
   @override
   void initState() {
     super.initState();
     currentGlobalChapter = widget.initialChapter ?? 1;
-    _pageController = PageController(initialPage: currentGlobalChapter - 1);
+    _pageController = PageController(
+      initialPage: currentGlobalChapter - 1,
+      keepPage: true,
+    );
     _loadSavedSettings();
+    
+    // START PRELOADING IMMEDIATELY
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _preloadAdjacentPages(currentGlobalChapter);
+    });
   }
 
   Future<void> _loadSavedSettings() async {
@@ -99,6 +112,13 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
         ),
       ),
     );
+  }
+
+  // Clear cache when settings change
+  void _onSettingsChanged() {
+    setState(() {
+      _pageCache.clear();
+    });
   }
 
   @override
@@ -203,18 +223,21 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
                       setState(() {
                         _fontSize = newSize;
                       });
+                      _onSettingsChanged();
                     },
                     currentFontFamily: _fontFamily,
                     onFontFamilyChanged: (newFont) {
                       setState(() {
                         _fontFamily = newFont;
                       });
+                      _onSettingsChanged();
                     },
                     removeDiacritics: _removeDiacritics,
                     onRemoveDiacriticsChanged: (value) {
                       setState(() {
                         _removeDiacritics = value;
                       });
+                      _onSettingsChanged();
                     },
                   ),
                 ),
@@ -227,19 +250,35 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
       body: PageView.builder(
         controller: _pageController,
         itemCount: totalChapters,
+        allowImplicitScrolling: true,
+        pageSnapping: true,  // ADD THIS LINE - ensures instant snap to page
+        physics: const PageScrollPhysics(),  // ADD THIS LINE - removes bounce/momentum, makes it feel more instant
         onPageChanged: (index) async {
           final newChapter = index + 1;
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setInt('last_chapter', newChapter);
+          
+          SharedPreferences.getInstance().then((prefs) {
+            prefs.setInt('last_chapter', newChapter);
+          });
+          
           setState(() {
             currentGlobalChapter = newChapter;
           });
+          
+          // Trigger preloading of new adjacent chapters
+          _preloadAdjacentPages(newChapter);
         },
         itemBuilder: (context, index) {
           final globalChapter = index + 1;
-          final info = BibleData.getChapterInfo(globalChapter);
           
-          return ChapterContentPage(
+          // Use cached page if available and settings haven't changed
+          final cacheKey = globalChapter;
+          if (_pageCache.containsKey(cacheKey)) {
+            return _pageCache[cacheKey]!;
+          }
+          
+          // Build new page
+          final info = BibleData.getChapterInfo(globalChapter);
+          final page = ChapterContentPage(
             key: ValueKey('$globalChapter-$_fontFamily-$_removeDiacritics'),
             bookName: info['bookName'],
             shortName: info['shortName'],
@@ -250,8 +289,65 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
             fontFamily: _fontFamily,
             removeDiacritics: _removeDiacritics,
           );
+          
+          // Cache the page
+          _pageCache[cacheKey] = page;
+          
+          // Limit cache size to prevent memory issues
+          if (_pageCache.length > 10) {
+            final keysToRemove = _pageCache.keys
+                .where((key) => (key - currentGlobalChapter).abs() > 5)
+                .toList();
+            for (var key in keysToRemove) {
+              _pageCache.remove(key);
+            }
+          }
+          
+          return page;
         },
       ),
     );
+  }
+
+  // Preload adjacent chapters in background
+  void _preloadAdjacentPages(int currentChapter) async {
+    if (_isPreloading) return;
+    _isPreloading = true;
+
+    try {
+      // Preload range: current -2 to +2 (5 chapters total)
+      final chapstersToPreload = <int>[];
+      for (int offset = -2; offset <= 2; offset++) {
+        final chapterNum = currentChapter + offset;
+        if (chapterNum >= 1 && 
+            chapterNum <= totalChapters && 
+            !_preloadedChapters.contains(chapterNum)) {
+          chapstersToPreload.add(chapterNum);
+        }
+      }
+
+      // Preload in order of priority: current, +1, -1, +2, -2
+      final priorityOrder = [
+        currentChapter,
+        currentChapter + 1,
+        currentChapter - 1,
+        currentChapter + 2,
+        currentChapter - 2,
+      ];
+
+      for (final chapterNum in priorityOrder) {
+        if (!chapstersToPreload.contains(chapterNum)) continue;
+        
+        final info = BibleData.getChapterInfo(chapterNum);
+        
+        // Preload the content in background (this triggers caching in BibleData)
+        BibleData.getChapterContent(info['bookIndex'], info['chapterInBook']).ignore();
+        BibleData.getChapterFootnotes(info['bookIndex'], info['chapterInBook']).ignore();
+        
+        _preloadedChapters.add(chapterNum);
+      }
+    } finally {
+      _isPreloading = false;
+    }
   }
 }
