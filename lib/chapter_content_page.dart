@@ -307,26 +307,59 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   Map<int, TextRange> _computeVerseTextRanges(List<VerseData> verses, bool removeDiacritics) {
     Map<int, TextRange> ranges = {};
     int offset = 0;
+    
     for (int i = 0; i < verses.length; i++) {
       VerseData verse = verses[i];
+      
       if (verse.number == 0) {
+        // Chapter heading
         String displayText = removeDiacritics ? BibleData.removeTashkeel(verse.text) : verse.text;
         offset += displayText.length;
         offset += 2; // \n\n
         continue;
       }
-      offset += 1; // U+FFFC for verse number WidgetSpan
+      
+      // Account for invisible SizedBox marker (1 character: U+FFFC)
+      offset += 1;
+      
+      // Account for verse number text (e.g., "1 " = 2 characters)
+      String verseNumText = '${verse.number} ';
+      offset += verseNumText.length;
+      
+      // Now the actual verse content starts
       int start = offset;
       String processedText = removeDiacritics ? BibleData.removeTashkeel(verse.text) : verse.text;
       int verseLength = processedText.length;
+      
       ranges[verse.number] = TextRange(start: start, end: start + verseLength);
+      
       offset += verseLength;
+      
       if (i < verses.length - 1) {
-        offset += 1; // ' '
+        offset += 1; // ' ' between verses
       }
     }
+    
     return ranges;
   }
+
+  List<int> _getSpannedVerses(TextSelection selection) {
+    List<int> spannedVerses = [];
+    
+    for (final entry in verseTextRanges.entries) {
+      final verseNum = entry.key;
+      final range = entry.value;
+      
+      // Check if selection overlaps with this verse's range
+      if (selection.start < range.end && selection.end > range.start) {
+        spannedVerses.add(verseNum);
+      }
+    }
+    
+    spannedVerses.sort();
+    return spannedVerses;
+  }
+
 
   List<TextRange> _toggleRange(List<TextRange> currentRanges, TextRange toggle) {
     List<TextRange> merged = _mergeRanges(currentRanges);
@@ -419,26 +452,30 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       } else {
         final verseKey = _verseKeys[verse.number] ??= GlobalKey();
         
+        // Store key reference for scrolling (attach to invisible marker)
         allSpans.add(WidgetSpan(
           alignment: PlaceholderAlignment.baseline,
           baseline: TextBaseline.alphabetic,
-          child: Directionality(
-            textDirection: TextDirection.ltr,
-            child: Container(
-              key: verseKey,
-              child: Text(
-                '${verse.number} ',
-                style: TextStyle(
-                  fontSize: widget.fontSize * 0.8,
-                  fontWeight: FontWeight.bold,
-                  color: themeProvider.verseNumberColor,
-                  fontFamily: isArabic ? widget.fontFamily : 'serif',
-                ),
-              ),
-            ),
+          child: SizedBox(
+            key: verseKey,
+            width: 0,
+            height: 0,
           ),
         ));
-        
+
+        // Add verse number as TextSpan (not WidgetSpan) with special formatting
+        allSpans.add(TextSpan(
+          text: '${verse.number} ',
+          style: TextStyle(
+            fontSize: widget.fontSize * 0.8,
+            fontWeight: FontWeight.bold,
+            color: themeProvider.verseNumberColor,
+            fontFamily: isArabic ? widget.fontFamily : 'serif',
+            // Make verse number visually distinct but selectable
+            letterSpacing: 0.5,
+          ),
+        ));
+                
         List<TextRange> hlRanges = highlightedRanges[_chapterKey]?[verse.number] ?? [];
         List<TextRange> ulRanges = underlinedRanges[_chapterKey]?[verse.number] ?? [];
         
@@ -534,148 +571,117 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     );
   }
 
-  void _handleVerseHighlight(String fullText, TextSelection selection, int verseNumber, bool isArabic) {
-    print('🎨 HIGHLIGHT DEBUG:');
-    print('  Verse number: $verseNumber');
+  void _handleVerseHighlight(String fullText, TextSelection selection, int firstDetectedVerse, bool isArabic) {
+    print('🎨 MULTI-VERSE HIGHLIGHT DEBUG:');
     print('  Selection: ${selection.start} to ${selection.end}');
-    print('  Is Arabic: $isArabic');
     
     if (selection.isCollapsed) {
       print('  ❌ Selection is collapsed');
       return;
     }
     
-    VerseData? targetVerse;
-    for (var verse in verses) {
-      if (verse.number == verseNumber) {
-        targetVerse = verse;
-        break;
-      }
-    }
+    // Get all verses that the selection spans
+    List<int> spannedVerses = _getSpannedVerses(selection);
     
-    if (targetVerse == null) {
-      print('  ❌ Target verse not found');
+    if (spannedVerses.isEmpty) {
+      print('  ❌ No verses detected in selection');
       return;
     }
     
-    print('  ✅ Found target verse: ${targetVerse.text.substring(0, min(50, targetVerse.text.length))}...');
-    
-    String originalText = widget.removeDiacritics 
-        ? BibleData.removeTashkeel(targetVerse.text) 
-        : targetVerse.text;
-    
-    print('  Original text length: ${originalText.length}');
-    
-    // FIXED: Use the precomputed verse text range instead of searching for verse number
-    if (!verseTextRanges.containsKey(verseNumber)) {
-      print('  ❌ Verse text range not found for verse $verseNumber');
-      return;
-    }
-    
-    TextRange verseRange = verseTextRanges[verseNumber]!;
-    int verseContentStart = verseRange.start;
-    
-    print('  Verse content starts at: $verseContentStart (from precomputed range)');
-    
-    String selectedText = fullText.substring(selection.start, selection.end);
-    print('  Selected text: "$selectedText"');
-    
-    String cleanSelected = selectedText
-        .replaceAll('\u200F', '')
-        .replaceAll('\u2066', '')
-        .replaceAll('\u2069', '')
-        .replaceAll('\uFFFC', '') // Remove WidgetSpan placeholder
-        .trim();
-    
-    print('  Cleaned selected text: "$cleanSelected"');
-    
-    int posInOriginal = originalText.indexOf(cleanSelected);
-    print('  Position in original text: $posInOriginal');
-    
-    if (posInOriginal == -1) {
-      print('  ⚠️ Exact match not found, trying fuzzy match...');
-      posInOriginal = _findBestMatch(originalText, cleanSelected);
-      print('  Fuzzy match position: $posInOriginal');
-    }
-    
-    if (posInOriginal == -1) {
-      print('  ❌ Could not find text in original verse');
-      return;
-    }
-    
-    int endInOriginal = posInOriginal + cleanSelected.length;
-    print('  Range in original: $posInOriginal to $endInOriginal');
-    
-    TextRange tr = TextRange(start: posInOriginal, end: endInOriginal);
+    print('  ✅ Selection spans ${spannedVerses.length} verse(s): $spannedVerses');
     
     setState(() {
       if (!highlightedRanges.containsKey(_chapterKey)) {
         highlightedRanges[_chapterKey] = {};
       }
-      if (!highlightedRanges[_chapterKey]!.containsKey(verseNumber)) {
-        highlightedRanges[_chapterKey]![verseNumber] = [];
+      
+      for (int verseNum in spannedVerses) {
+        if (!verseTextRanges.containsKey(verseNum)) continue;
+        
+        TextRange verseRange = verseTextRanges[verseNum]!;
+        
+        // Calculate the portion of selection that falls within this verse
+        int highlightStart = selection.start < verseRange.start 
+            ? 0  // Selection started before this verse
+            : selection.start - verseRange.start;  // Selection started within this verse
+        
+        int highlightEnd = selection.end > verseRange.end
+            ? verseRange.end - verseRange.start  // Selection extends beyond this verse
+            : selection.end - verseRange.start;  // Selection ends within this verse
+        
+        print('  📍 Verse $verseNum: highlighting from $highlightStart to $highlightEnd (verse length: ${verseRange.end - verseRange.start})');
+        
+        TextRange highlightRange = TextRange(start: highlightStart, end: highlightEnd);
+        
+        if (!highlightedRanges[_chapterKey]!.containsKey(verseNum)) {
+          highlightedRanges[_chapterKey]![verseNum] = [];
+        }
+        
+        highlightedRanges[_chapterKey]![verseNum] = _toggleRange(
+          highlightedRanges[_chapterKey]![verseNum]!,
+          highlightRange
+        );
       }
-      highlightedRanges[_chapterKey]![verseNumber] = _toggleRange(
-        highlightedRanges[_chapterKey]![verseNumber]!,
-        tr
-      );
     });
     
-    print('  ✅ Highlight saved. Current highlights for verse: ${highlightedRanges[_chapterKey]![verseNumber]}');
+    print('  ✅ Highlight applied to ${spannedVerses.length} verse(s)');
     _saveHighlightedRanges();
   }
 
-  void _handleVerseUnderline(String fullText, TextSelection selection, int verseNumber, bool isArabic) {
-    if (selection.isCollapsed) return;
+  void _handleVerseUnderline(String fullText, TextSelection selection, int firstDetectedVerse, bool isArabic) {
+    print('📏 MULTI-VERSE UNDERLINE DEBUG:');
+    print('  Selection: ${selection.start} to ${selection.end}');
     
-    VerseData? targetVerse;
-    for (var verse in verses) {
-      if (verse.number == verseNumber) {
-        targetVerse = verse;
-        break;
-      }
-    }
-    if (targetVerse == null) return;
-    
-    String originalText = widget.removeDiacritics 
-        ? BibleData.removeTashkeel(targetVerse.text) 
-        : targetVerse.text;
-    
-    // FIXED: Use the precomputed verse text range instead of searching
-    if (!verseTextRanges.containsKey(verseNumber)) {
+    if (selection.isCollapsed) {
+      print('  ❌ Selection is collapsed');
       return;
     }
     
-    String selectedText = fullText.substring(selection.start, selection.end);
-    String cleanSelected = selectedText
-        .replaceAll('\u200F', '')
-        .replaceAll('\u2066', '')
-        .replaceAll('\u2069', '')
-        .replaceAll('\uFFFC', '') // Remove WidgetSpan placeholder
-        .trim();
+    // Get all verses that the selection spans
+    List<int> spannedVerses = _getSpannedVerses(selection);
     
-    int posInOriginal = originalText.indexOf(cleanSelected);
-    if (posInOriginal == -1) {
-      posInOriginal = _findBestMatch(originalText, cleanSelected);
+    if (spannedVerses.isEmpty) {
+      print('  ❌ No verses detected in selection');
+      return;
     }
-    if (posInOriginal == -1) return;
     
-    int endInOriginal = posInOriginal + cleanSelected.length;
-    TextRange tr = TextRange(start: posInOriginal, end: endInOriginal);
+    print('  ✅ Selection spans ${spannedVerses.length} verse(s): $spannedVerses');
     
     setState(() {
       if (!underlinedRanges.containsKey(_chapterKey)) {
         underlinedRanges[_chapterKey] = {};
       }
-      if (!underlinedRanges[_chapterKey]!.containsKey(verseNumber)) {
-        underlinedRanges[_chapterKey]![verseNumber] = [];
+      
+      for (int verseNum in spannedVerses) {
+        if (!verseTextRanges.containsKey(verseNum)) continue;
+        
+        TextRange verseRange = verseTextRanges[verseNum]!;
+        
+        // Calculate the portion of selection that falls within this verse
+        int underlineStart = selection.start < verseRange.start 
+            ? 0  // Selection started before this verse
+            : selection.start - verseRange.start;  // Selection started within this verse
+        
+        int underlineEnd = selection.end > verseRange.end
+            ? verseRange.end - verseRange.start  // Selection extends beyond this verse
+            : selection.end - verseRange.start;  // Selection ends within this verse
+        
+        print('  📍 Verse $verseNum: underlining from $underlineStart to $underlineEnd (verse length: ${verseRange.end - verseRange.start})');
+        
+        TextRange underlineRange = TextRange(start: underlineStart, end: underlineEnd);
+        
+        if (!underlinedRanges[_chapterKey]!.containsKey(verseNum)) {
+          underlinedRanges[_chapterKey]![verseNum] = [];
+        }
+        
+        underlinedRanges[_chapterKey]![verseNum] = _toggleRange(
+          underlinedRanges[_chapterKey]![verseNum]!,
+          underlineRange
+        );
       }
-      underlinedRanges[_chapterKey]![verseNumber] = _toggleRange(
-        underlinedRanges[_chapterKey]![verseNumber]!,
-        tr
-      );
     });
     
+    print('  ✅ Underline applied to ${spannedVerses.length} verse(s)');
     _saveUnderlinedRanges();
   }
 
