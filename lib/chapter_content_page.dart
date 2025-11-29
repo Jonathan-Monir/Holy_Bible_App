@@ -322,16 +322,19 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       // Account for invisible SizedBox marker (1 character: U+FFFC)
       offset += 1;
       
+      // NOW INCLUDE THE VERSE NUMBER IN THE RANGE
+      int start = offset;  // Start BEFORE verse number
+      
       // Account for verse number text (e.g., "1 " = 2 characters)
       String verseNumText = '${verse.number} ';
       offset += verseNumText.length;
       
-      // Now the actual verse content starts
-      int start = offset;
+      // Add the actual verse content length
       String processedText = removeDiacritics ? BibleData.removeTashkeel(verse.text) : verse.text;
       int verseLength = processedText.length;
       
-      ranges[verse.number] = TextRange(start: start, end: start + verseLength);
+      // Range now includes: [verse number] + [verse text]
+      ranges[verse.number] = TextRange(start: start, end: offset + verseLength);
       
       offset += verseLength;
       
@@ -463,22 +466,31 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
           ),
         ));
 
-        // Add verse number as TextSpan (not WidgetSpan) with special formatting
+        // Check if verse number should be highlighted/underlined
+        List<TextRange> hlRanges = highlightedRanges[_chapterKey]?[verse.number] ?? [];
+        List<TextRange> ulRanges = underlinedRanges[_chapterKey]?[verse.number] ?? [];
+
+        String verseNumText = '${verse.number} ';
+        bool verseNumHighlighted = hlRanges.any((r) => r.start == 0 || r.start < verseNumText.length);
+        bool verseNumUnderlined = ulRanges.any((r) => r.start == 0 || r.start < verseNumText.length);
+
+        // Add verse number as TextSpan with potential highlighting/underlining
         allSpans.add(TextSpan(
-          text: '${verse.number} ',
+          text: verseNumText,
           style: TextStyle(
             fontSize: widget.fontSize * 0.8,
             fontWeight: FontWeight.bold,
             color: themeProvider.verseNumberColor,
             fontFamily: isArabic ? widget.fontFamily : 'serif',
-            // Make verse number visually distinct but selectable
             letterSpacing: 0.5,
+            // Apply highlighting/underlining to verse numbers
+            backgroundColor: verseNumHighlighted ? Colors.yellow : null,
+            decoration: verseNumUnderlined ? TextDecoration.underline : null,
+            decorationColor: Theme.of(context).primaryColor,
+            decorationThickness: 2,
           ),
         ));
                 
-        List<TextRange> hlRanges = highlightedRanges[_chapterKey]?[verse.number] ?? [];
-        List<TextRange> ulRanges = underlinedRanges[_chapterKey]?[verse.number] ?? [];
-        
         allSpans.addAll(_buildVerseSpansForWidget(verse.text, hlRanges, ulRanges, isArabic, verse.number));
         
         if (i < verses.length - 1) {
@@ -745,12 +757,18 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       int end = match.end;
       int footnoteNum = int.parse(match.group(1)!);
       
+      // Add text BEFORE footnote with styling
       if (start > lastEnd) {
         String textBefore = processedText.substring(lastEnd, start);
         String displayText = isArabic ? '\u200F$textBefore' : textBefore;
         spans.addAll(_buildStyledSpans(displayText, hlRanges, ulRanges, isArabic, lastEnd));
       }
       
+      // Determine if footnote number should be highlighted/underlined
+      bool footnoteHighlighted = hlRanges.any((r) => r.start <= start && r.end >= end);
+      bool footnoteUnderlined = ulRanges.any((r) => r.start <= start && r.end >= end);
+      
+      // Add footnote number with potential highlighting/underlining
       spans.add(
         TextSpan(
           text: '\u2066$footnoteNum\u2069',
@@ -759,6 +777,11 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
             color: themeProvider.footnoteNumberColor,
             fontWeight: FontWeight.bold,
             fontFeatures: const [FontFeature.superscripts()],
+            // Apply highlighting/underlining to footnote numbers
+            backgroundColor: footnoteHighlighted ? Colors.yellow : null,
+            decoration: footnoteUnderlined ? TextDecoration.underline : null,
+            decorationColor: Theme.of(context).primaryColor,
+            decorationThickness: 2,
           ),
           recognizer: TapGestureRecognizer()..onTap = () => _scrollToFootnote(footnoteNum),
         ),
@@ -767,6 +790,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       lastEnd = end;
     }
     
+    // Add remaining text after last footnote
     if (lastEnd < processedText.length) {
       String remainingText = processedText.substring(lastEnd);
       String displayText = isArabic ? '\u200F$remainingText' : remainingText;
