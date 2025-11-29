@@ -44,10 +44,12 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   Map<int, int> verseOffsets = {};
   Map<String, Map<int, List<TextRange>>> highlightedRanges = <String, Map<int, List<TextRange>>>{};
   Map<String, Map<int, List<TextRange>>> underlinedRanges = <String, Map<int, List<TextRange>>>{};
+
   String footnotes = '';
   final GlobalKey _footnotesKey = GlobalKey();
   final Map<int, GlobalKey> _footnoteKeys = {};
   final Map<int, GlobalKey> _verseKeys = {};
+  Map<int, TextRange> verseTextRanges = {};
   late ScrollController _scrollController;
 
   @override
@@ -60,7 +62,8 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   void initState() {
       super.initState();
       _scrollController = ScrollController();
-      _loadSavedData();
+      _loadSavedAnnotations();
+      _loadChapterContent();
   }
 
   @override
@@ -69,24 +72,18 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     if (oldWidget.bookIndex != widget.bookIndex || 
         oldWidget.chapterNumber != widget.chapterNumber ||
         oldWidget.removeDiacritics != widget.removeDiacritics) {
-      _loadSavedData();
+      _loadSavedAnnotations();
+      _loadChapterContent();
     }
   }
 
   String get _chapterKey => '${widget.bookIndex}_${widget.chapterNumber}';
 
-  Future<void> _loadSavedData() async {
-    // Load chapter content FIRST (it might already be cached)
-    final contentFuture = _loadChapterContent();
-    
-    // Load highlights in parallel (non-blocking)
+  Future<void> _loadSavedAnnotations() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       
       final highlightedData = prefs.getString('highlighted_ranges') ?? '{}';
-      final underlinedData = prefs.getString('underlined_ranges') ?? '{}';
-      
-      // Only parse if not empty
       if (highlightedData != '{}') {
         final highlightedMap = json.decode(highlightedData) as Map<String, dynamic>;
         highlightedRanges = {};
@@ -101,6 +98,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         }
       }
       
+      final underlinedData = prefs.getString('underlined_ranges') ?? '{}';
       if (underlinedData != '{}') {
         final underlinedMap = json.decode(underlinedData) as Map<String, dynamic>;
         underlinedRanges = {};
@@ -115,11 +113,8 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         }
       }
     } catch (e) {
-      print('Error loading highlights: $e');
+      print('Error loading annotations: $e');
     }
-    
-    // Wait for content to finish loading
-    await contentFuture;
   }
 
   Future<void> _saveHighlightedRanges() async {
@@ -203,7 +198,6 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
 
   Future<void> _loadChapterContent() async {
     try {
-      // These calls should now be instant if preloaded
       final content = await BibleData.getChapterContent(widget.bookIndex, widget.chapterNumber);
       final fn = await BibleData.getChapterFootnotes(widget.bookIndex, widget.chapterNumber);
       
@@ -212,6 +206,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
           chapterContent = content;
           verses = _parseVersesToList(content);
           verseOffsets = _computeVerseOffsets(verses);
+          verseTextRanges = _computeVerseTextRanges(verses, widget.removeDiacritics);
           footnotes = fn;
           isLoading = false;
         });
@@ -242,19 +237,15 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         String verseText = match.group(2)!.trim();
         
         if (verseText.isNotEmpty) {
-          // Extract footnote references from the verse text
-          // Store matches with their positions to maintain left-to-right order
           List<int> footnoteRefs = [];
           RegExp footnotePattern = RegExp(r'\[(\d+)\]');
           List<Match> matches = footnotePattern.allMatches(verseText).toList();
           
-          // Sort matches by their position (left to right in the original text)
-          // This ensures we get the correct order regardless of RTL display
           matches.sort((a, b) => a.start.compareTo(b.start));
           
           for (Match m in matches) {
             int refNum = int.parse(m.group(1)!);
-            if (!footnoteRefs.contains(refNum)) {  // Avoid duplicates
+            if (!footnoteRefs.contains(refNum)) {
               footnoteRefs.add(refNum);
             }
           }
@@ -311,6 +302,30 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       currentOffset += verse.number.toString().length + verse.text.length + 2;
     }
     return offsets;
+  }
+
+  Map<int, TextRange> _computeVerseTextRanges(List<VerseData> verses, bool removeDiacritics) {
+    Map<int, TextRange> ranges = {};
+    int offset = 0;
+    for (int i = 0; i < verses.length; i++) {
+      VerseData verse = verses[i];
+      if (verse.number == 0) {
+        String displayText = removeDiacritics ? BibleData.removeTashkeel(verse.text) : verse.text;
+        offset += displayText.length;
+        offset += 2; // \n\n
+        continue;
+      }
+      offset += 1; // U+FFFC for verse number WidgetSpan
+      int start = offset;
+      String processedText = removeDiacritics ? BibleData.removeTashkeel(verse.text) : verse.text;
+      int verseLength = processedText.length;
+      ranges[verse.number] = TextRange(start: start, end: start + verseLength);
+      offset += verseLength;
+      if (i < verses.length - 1) {
+        offset += 1; // ' '
+      }
+    }
+    return ranges;
   }
 
   List<TextRange> _toggleRange(List<TextRange> currentRanges, TextRange toggle) {
@@ -390,7 +405,6 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       VerseData verse = verses[i];
       
       if (verse.number == 0) {
-        // Chapter subtitle/header
         String displayText = widget.removeDiacritics ? BibleData.removeTashkeel(verse.text) : verse.text;
         
         allSpans.add(TextSpan(
@@ -403,15 +417,13 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         ));
         allSpans.add(const TextSpan(text: '\n\n'));
       } else {
-        // Store verse key for scrolling reference
         final verseKey = _verseKeys[verse.number] ??= GlobalKey();
         
-        // Verse number with explicit LTR direction to prevent reordering
         allSpans.add(WidgetSpan(
           alignment: PlaceholderAlignment.baseline,
           baseline: TextBaseline.alphabetic,
           child: Directionality(
-            textDirection: TextDirection.ltr,  // Force LTR for verse numbers
+            textDirection: TextDirection.ltr,
             child: Container(
               key: verseKey,
               child: Text(
@@ -427,13 +439,11 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
           ),
         ));
         
-        // Verse content
         List<TextRange> hlRanges = highlightedRanges[_chapterKey]?[verse.number] ?? [];
         List<TextRange> ulRanges = underlinedRanges[_chapterKey]?[verse.number] ?? [];
         
         allSpans.addAll(_buildVerseSpansForWidget(verse.text, hlRanges, ulRanges, isArabic, verse.number));
         
-        // Add space between verses (but not after the last verse)
         if (i < verses.length - 1) {
           allSpans.add(const TextSpan(text: ' '));
         }
@@ -445,23 +455,35 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
       textAlign: TextAlign.start,
       contextMenuBuilder: (context, editableTextState) {
-        return _buildGlobalContextMenu(context, editableTextState, isArabic);
+        return _buildVerseContextMenuWithDetection(context, editableTextState, isArabic);
       },
     );
   }
-
-  Widget _buildGlobalContextMenu(BuildContext context, EditableTextState editableTextState, bool isArabic) {
+  
+  Widget _buildVerseContextMenuWithDetection(BuildContext context, EditableTextState editableTextState, bool isArabic) {
     final TextEditingValue value = editableTextState.textEditingValue;
     final TextSelection selection = value.selection;
-
+    print('🔍 CONTEXT MENU DEBUG:');
+    print(' Selection valid: ${selection.isValid}');
+    print(' Selection collapsed: ${selection.isCollapsed}');
+    print(' Selection start: ${selection.start}, end: ${selection.end}');
     if (!selection.isValid || selection.isCollapsed) {
+      print(' ❌ Selection invalid or collapsed');
       return const SizedBox.shrink();
     }
-
     final String selectedText = value.text.substring(selection.start, selection.end);
-
+    print(' Selected text: "${selectedText.substring(0, min(50, selectedText.length))}"...');
+    // Detect verse using precomputed ranges
+    int? detectedVerseNumber;
+    for (final entry in verseTextRanges.entries) {
+      final range = entry.value;
+      if (selection.start >= range.start && selection.start < range.end) {
+        detectedVerseNumber = entry.key;
+        break;
+      }
+    }
+    print(' Detected verse: $detectedVerseNumber');
     List<ContextMenuButtonItem> buttonItems = [];
-    
     buttonItems.add(
       ContextMenuButtonItem(
         label: isArabic ? 'نسخ' : 'Copy',
@@ -471,7 +493,6 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         },
       ),
     );
-
     buttonItems.add(
       ContextMenuButtonItem(
         label: isArabic ? 'مشاركة' : 'Share',
@@ -481,13 +502,223 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         },
       ),
     );
-
+    if (detectedVerseNumber != null) {
+      print(' ✅ Adding Highlight and Underline buttons for verse $detectedVerseNumber');
+      buttonItems.add(
+        ContextMenuButtonItem(
+          label: isArabic ? 'تمييز' : 'Highlight',
+          onPressed: () {
+            print('🎨 Highlight button pressed for verse $detectedVerseNumber');
+            _handleVerseHighlight(value.text, selection, detectedVerseNumber!, isArabic);
+            editableTextState.hideToolbar();
+          },
+        ),
+      );
+      buttonItems.add(
+        ContextMenuButtonItem(
+          label: isArabic ? 'تسطير' : 'Underline',
+          onPressed: () {
+            print('📏 Underline button pressed for verse $detectedVerseNumber');
+            _handleVerseUnderline(value.text, selection, detectedVerseNumber!, isArabic);
+            editableTextState.hideToolbar();
+          },
+        ),
+      );
+    } else {
+      print(' ⚠️ No verse detected - Highlight/Underline buttons NOT added');
+    }
+    print(' Total button items: ${buttonItems.length}');
     return AdaptiveTextSelectionToolbar.buttonItems(
       anchors: editableTextState.contextMenuAnchors,
       buttonItems: buttonItems,
     );
   }
 
+  void _handleVerseHighlight(String fullText, TextSelection selection, int verseNumber, bool isArabic) {
+    print('🎨 HIGHLIGHT DEBUG:');
+    print('  Verse number: $verseNumber');
+    print('  Selection: ${selection.start} to ${selection.end}');
+    print('  Is Arabic: $isArabic');
+    
+    if (selection.isCollapsed) {
+      print('  ❌ Selection is collapsed');
+      return;
+    }
+    
+    VerseData? targetVerse;
+    for (var verse in verses) {
+      if (verse.number == verseNumber) {
+        targetVerse = verse;
+        break;
+      }
+    }
+    
+    if (targetVerse == null) {
+      print('  ❌ Target verse not found');
+      return;
+    }
+    
+    print('  ✅ Found target verse: ${targetVerse.text.substring(0, min(50, targetVerse.text.length))}...');
+    
+    String originalText = widget.removeDiacritics 
+        ? BibleData.removeTashkeel(targetVerse.text) 
+        : targetVerse.text;
+    
+    print('  Original text length: ${originalText.length}');
+    
+    // FIXED: Use the precomputed verse text range instead of searching for verse number
+    if (!verseTextRanges.containsKey(verseNumber)) {
+      print('  ❌ Verse text range not found for verse $verseNumber');
+      return;
+    }
+    
+    TextRange verseRange = verseTextRanges[verseNumber]!;
+    int verseContentStart = verseRange.start;
+    
+    print('  Verse content starts at: $verseContentStart (from precomputed range)');
+    
+    String selectedText = fullText.substring(selection.start, selection.end);
+    print('  Selected text: "$selectedText"');
+    
+    String cleanSelected = selectedText
+        .replaceAll('\u200F', '')
+        .replaceAll('\u2066', '')
+        .replaceAll('\u2069', '')
+        .replaceAll('\uFFFC', '') // Remove WidgetSpan placeholder
+        .trim();
+    
+    print('  Cleaned selected text: "$cleanSelected"');
+    
+    int posInOriginal = originalText.indexOf(cleanSelected);
+    print('  Position in original text: $posInOriginal');
+    
+    if (posInOriginal == -1) {
+      print('  ⚠️ Exact match not found, trying fuzzy match...');
+      posInOriginal = _findBestMatch(originalText, cleanSelected);
+      print('  Fuzzy match position: $posInOriginal');
+    }
+    
+    if (posInOriginal == -1) {
+      print('  ❌ Could not find text in original verse');
+      return;
+    }
+    
+    int endInOriginal = posInOriginal + cleanSelected.length;
+    print('  Range in original: $posInOriginal to $endInOriginal');
+    
+    TextRange tr = TextRange(start: posInOriginal, end: endInOriginal);
+    
+    setState(() {
+      if (!highlightedRanges.containsKey(_chapterKey)) {
+        highlightedRanges[_chapterKey] = {};
+      }
+      if (!highlightedRanges[_chapterKey]!.containsKey(verseNumber)) {
+        highlightedRanges[_chapterKey]![verseNumber] = [];
+      }
+      highlightedRanges[_chapterKey]![verseNumber] = _toggleRange(
+        highlightedRanges[_chapterKey]![verseNumber]!,
+        tr
+      );
+    });
+    
+    print('  ✅ Highlight saved. Current highlights for verse: ${highlightedRanges[_chapterKey]![verseNumber]}');
+    _saveHighlightedRanges();
+  }
+
+  void _handleVerseUnderline(String fullText, TextSelection selection, int verseNumber, bool isArabic) {
+    if (selection.isCollapsed) return;
+    
+    VerseData? targetVerse;
+    for (var verse in verses) {
+      if (verse.number == verseNumber) {
+        targetVerse = verse;
+        break;
+      }
+    }
+    if (targetVerse == null) return;
+    
+    String originalText = widget.removeDiacritics 
+        ? BibleData.removeTashkeel(targetVerse.text) 
+        : targetVerse.text;
+    
+    // FIXED: Use the precomputed verse text range instead of searching
+    if (!verseTextRanges.containsKey(verseNumber)) {
+      return;
+    }
+    
+    String selectedText = fullText.substring(selection.start, selection.end);
+    String cleanSelected = selectedText
+        .replaceAll('\u200F', '')
+        .replaceAll('\u2066', '')
+        .replaceAll('\u2069', '')
+        .replaceAll('\uFFFC', '') // Remove WidgetSpan placeholder
+        .trim();
+    
+    int posInOriginal = originalText.indexOf(cleanSelected);
+    if (posInOriginal == -1) {
+      posInOriginal = _findBestMatch(originalText, cleanSelected);
+    }
+    if (posInOriginal == -1) return;
+    
+    int endInOriginal = posInOriginal + cleanSelected.length;
+    TextRange tr = TextRange(start: posInOriginal, end: endInOriginal);
+    
+    setState(() {
+      if (!underlinedRanges.containsKey(_chapterKey)) {
+        underlinedRanges[_chapterKey] = {};
+      }
+      if (!underlinedRanges[_chapterKey]!.containsKey(verseNumber)) {
+        underlinedRanges[_chapterKey]![verseNumber] = [];
+      }
+      underlinedRanges[_chapterKey]![verseNumber] = _toggleRange(
+        underlinedRanges[_chapterKey]![verseNumber]!,
+        tr
+      );
+    });
+    
+    _saveUnderlinedRanges();
+  }
+
+  int _findBestMatch(String original, String target) {
+    if (target.isEmpty) return -1;
+    
+    // Try removing common whitespace differences
+    String normalizedTarget = target.replaceAll(RegExp(r'\s+'), ' ').trim();
+    String normalizedOriginal = original.replaceAll(RegExp(r'\s+'), ' ');
+    
+    int pos = normalizedOriginal.indexOf(normalizedTarget);
+    if (pos != -1) {
+      // Map back to original position
+      int actualPos = 0;
+      int normalizedPos = 0;
+      while (normalizedPos < pos && actualPos < original.length) {
+        if (!original[actualPos].trim().isEmpty || normalizedOriginal[normalizedPos] == ' ') {
+          normalizedPos++;
+        }
+        actualPos++;
+      }
+      return actualPos;
+    }
+    
+    // Last resort: substring search with partial matching
+    int bestMatch = -1;
+    int bestScore = 0;
+    
+    for (int i = 0; i <= original.length - target.length; i++) {
+      int score = 0;
+      for (int j = 0; j < target.length; j++) {
+        if (original[i + j] == target[j]) {
+          score++;
+        }
+      }
+      if (score > bestScore && score > target.length * 0.8) {
+        bestScore = score;
+        bestMatch = i;
+      }
+    }
+    
+    return bestMatch;
+  }
 
   List<InlineSpan> _buildVerseSpansForWidget(String verseText, List<TextRange> hlRanges, List<TextRange> ulRanges, bool isArabic, int verseNumber) {
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
@@ -498,7 +729,6 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     
     List<InlineSpan> spans = [];
     
-    // Split text by footnote markers [1], [2], etc.
     RegExp footnotePattern = RegExp(r'\[(\d+)\]');
     int lastEnd = 0;
     
@@ -509,22 +739,18 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       int end = match.end;
       int footnoteNum = int.parse(match.group(1)!);
       
-      // Add text before the footnote marker
       if (start > lastEnd) {
         String textBefore = processedText.substring(lastEnd, start);
         String displayText = isArabic ? '\u200F$textBefore' : textBefore;
         spans.addAll(_buildStyledSpans(displayText, hlRanges, ulRanges, isArabic, lastEnd));
       }
       
-      // Use TextSpan with regular numbers (not Unicode superscripts) for both Arabic and non-Arabic
-      // Wrap with LRI/PDI to keep the number in LTR direction
-      // Use a smaller size and different styling
       spans.add(
         TextSpan(
           text: '\u2066$footnoteNum\u2069',
           style: TextStyle(
             fontSize: widget.fontSize * 0.65,
-            color: themeProvider.footnoteNumberColor,  // Changed from Theme.of(context).primaryColor
+            color: themeProvider.footnoteNumberColor,
             fontWeight: FontWeight.bold,
             fontFeatures: const [FontFeature.superscripts()],
           ),
@@ -535,7 +761,6 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       lastEnd = end;
     }
     
-    // Add remaining text after the last footnote marker
     if (lastEnd < processedText.length) {
       String remainingText = processedText.substring(lastEnd);
       String displayText = isArabic ? '\u200F$remainingText' : remainingText;
@@ -545,34 +770,21 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     return spans;
   }
 
-  String _toSuperscript(String number) {
-    const superscriptMap = {
-      '0': '⁰',
-      '1': '¹',
-      '2': '²',
-      '3': '³',
-      '4': '⁴',
-      '5': '⁵',
-      '6': '⁶',
-      '7': '⁷',
-      '8': '⁸',
-      '9': '⁹',
-    };
-    
-    return number.split('').map((char) => superscriptMap[char] ?? char).join();
-  }
-
   List<InlineSpan> _buildStyledSpans(String text, List<TextRange> hlRanges, List<TextRange> ulRanges, bool isArabic, int offset) {
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     
     if (text.isEmpty) return [];
     
-    Set<int> points = {0, text.length};
+    // Remove RTL marker for calculation
+    String cleanText = text.replaceAll('\u200F', '');
+    int rtlOffset = text.startsWith('\u200F') ? 1 : 0;
+    
+    Set<int> points = {0, cleanText.length};
     for (var r in [...hlRanges, ...ulRanges]) {
-      int adjustedStart = r.start + 1 - offset;
-      int adjustedEnd = r.end + 1 - offset;
-      if (adjustedStart >= 0 && adjustedStart <= text.length) points.add(adjustedStart);
-      if (adjustedEnd >= 0 && adjustedEnd <= text.length) points.add(adjustedEnd);
+      int adjustedStart = r.start - offset;
+      int adjustedEnd = r.end - offset;
+      if (adjustedStart >= 0 && adjustedStart <= cleanText.length) points.add(adjustedStart);
+      if (adjustedEnd >= 0 && adjustedEnd <= cleanText.length) points.add(adjustedEnd);
     }
     List<int> sortedPoints = points.toList()..sort();
 
@@ -584,11 +796,14 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       int globalStart = start + offset;
       int globalEnd = end + offset;
 
-      bool isHighlighted = hlRanges.any((r) => r.start + 1 <= globalStart && r.end + 1 >= globalEnd);
-      bool isUnderlined = ulRanges.any((r) => r.start + 1 <= globalStart && r.end + 1 >= globalEnd);
+      bool isHighlighted = hlRanges.any((r) => r.start <= globalStart && r.end >= globalEnd);
+      bool isUnderlined = ulRanges.any((r) => r.start <= globalStart && r.end >= globalEnd);
 
+      // Get text with RTL marker if applicable
+      String spanText = text.substring(start + rtlOffset, end + rtlOffset);
+      
       spans.add(TextSpan(
-        text: text.substring(start, end),
+        text: spanText,
         style: _getFontStyle(isArabic).copyWith(
           fontWeight: FontWeight.normal,
           height: 1.8,
@@ -603,96 +818,11 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     return spans;
   }
 
-  Widget _buildVerseContextMenu(BuildContext context, EditableTextState editableTextState, int verseNumber, bool isArabic) {
-    final TextEditingValue value = editableTextState.textEditingValue;
-    final TextSelection selection = value.selection;
-
-    if (!selection.isValid || selection.isCollapsed) {
-      return const SizedBox.shrink();
-    }
-
-    final String selectedText = value.text.substring(selection.start, selection.end);
-
-    List<ContextMenuButtonItem> buttonItems = [];
-    
-    buttonItems.add(
-      ContextMenuButtonItem(
-        label: isArabic ? 'نسخ' : 'Copy',
-        onPressed: () {
-          Clipboard.setData(ClipboardData(text: selectedText));
-          editableTextState.hideToolbar();
-        },
-      ),
-    );
-
-    buttonItems.addAll([
-      ContextMenuButtonItem(
-        label: isArabic ? 'مشاركة' : 'Share',
-        onPressed: () {
-          Share.share(selectedText);
-          editableTextState.hideToolbar();
-        },
-      ),
-      ContextMenuButtonItem(
-        label: isArabic ? 'تمييز' : 'Highlight',
-        onPressed: () {
-          _handleVerseHighlight(selection, verseNumber);
-          editableTextState.hideToolbar();
-        },
-      ),
-      ContextMenuButtonItem(
-        label: isArabic ? 'تسطير' : 'Underline',
-        onPressed: () {
-          _handleVerseUnderline(selection, verseNumber);
-          editableTextState.hideToolbar();
-        },
-      ),
-    ]);
-
-    return AdaptiveTextSelectionToolbar.buttonItems(
-      anchors: editableTextState.contextMenuAnchors,
-      buttonItems: buttonItems,
-    );
-  }
-
-  void _handleVerseHighlight(TextSelection selection, int verseNumber) {
-    if (selection.isCollapsed) return;
-
-    int adjustedStart = max(0, selection.start - 1);
-    int adjustedEnd = max(0, selection.end - 1);
-    TextRange tr = TextRange(start: adjustedStart, end: adjustedEnd);
-
-    setState(() {
-      if (!highlightedRanges.containsKey(_chapterKey)) highlightedRanges[_chapterKey] = {};
-      if (!highlightedRanges[_chapterKey]!.containsKey(verseNumber)) highlightedRanges[_chapterKey]![verseNumber] = [];
-      highlightedRanges[_chapterKey]![verseNumber] = _toggleRange(highlightedRanges[_chapterKey]![verseNumber]!, tr);
-    });
-
-    _saveHighlightedRanges();
-  }
-
-  void _handleVerseUnderline(TextSelection selection, int verseNumber) {
-    if (selection.isCollapsed) return;
-    
-    int adjustedStart = max(0, selection.start - 1);
-    int adjustedEnd = max(0, selection.end - 1);
-    TextRange tr = TextRange(start: adjustedStart, end: adjustedEnd);
-    
-    setState(() {
-      if (!underlinedRanges.containsKey(_chapterKey)) underlinedRanges[_chapterKey] = {};
-      if (!underlinedRanges[_chapterKey]!.containsKey(verseNumber)) underlinedRanges[_chapterKey]![verseNumber] = [];
-      underlinedRanges[_chapterKey]![verseNumber] = _toggleRange(underlinedRanges[_chapterKey]![verseNumber]!, tr);
-    });
-    
-    _saveUnderlinedRanges();
-  }
-
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);  // Remove listen: false
+    final themeProvider = Provider.of<ThemeProvider>(context);
     bool isArabic = chapterContent.contains(RegExp(r'[\u0600-\u06FF]'));
     
-    // Split footnotes into individual lines
     List<String> rawNotes = footnotes.split('\n').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
 
     String? chapterSubtitle;
@@ -713,31 +843,30 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       child: Column(
         crossAxisAlignment: isArabic ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  '${widget.bookName} ${widget.chapterNumber}',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: themeProvider.primaryTextColor,
-                  ),
-                  textAlign: isArabic ? TextAlign.right : TextAlign.left,
-                  textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                '${widget.bookName} ${widget.chapterNumber}',
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
                 ),
+                textAlign: isArabic ? TextAlign.right : TextAlign.left,
+                textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
               ),
-              if (hasHighlights)
-                IconButton(
-                  onPressed: _clearAllHighlights,
-                  icon: const Icon(Icons.highlight_off),
-                  tooltip: 'Clear all highlights',
-                  color: Colors.red.shade700,
-                  iconSize: 28,
-                ),
-            ],
-          ),
+            ),
+          if (hasHighlights)
+            IconButton(
+              onPressed: _clearAllHighlights,
+              icon: const Icon(Icons.highlight_off),
+              tooltip: 'Clear all highlights',
+              color: Colors.red.shade700,
+              iconSize: 28,
+            ),
+          ],
+        ),
           const SizedBox(height: 20),
           Expanded(
             child: isLoading
@@ -791,18 +920,15 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
                                     ),
                                   ),
                                 ...noteList.map((noteText) {
-                                  // Extract footnote number and text
                                   RegExp footnoteNumPattern = RegExp(r'^\[(\d+)\]\s*(.*)$', dotAll: true);
                                   Match? match = footnoteNumPattern.firstMatch(noteText);
                                   
-                                  // If no number found in the text, skip this footnote
                                   if (match == null) {
                                     return const SizedBox.shrink();
                                   }
                                   
                                   int footnoteNumber = int.parse(match.group(1)!);
                                   String footnoteContent = match.group(2)!.trim();
-                                  
                                   
                                   if (widget.removeDiacritics) {
                                     footnoteContent = BibleData.removeTashkeel(footnoteContent);
@@ -817,7 +943,6 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
                                       children: [
                                         GestureDetector(
                                           onTap: () {
-                                            // Find verse that contains this footnote reference
                                             for (var verse in verses) {
                                               if (verse.footnoteRefs.contains(footnoteNumber)) {
                                                 _scrollToVerse(verse.number);
@@ -897,7 +1022,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
 class VerseData {
   final int number;
   final String text;
-  final List<int> footnoteRefs; // List of footnote numbers referenced in this verse
+  final List<int> footnoteRefs;
 
   VerseData({
     required this.number,
