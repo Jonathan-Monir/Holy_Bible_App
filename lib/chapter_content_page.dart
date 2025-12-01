@@ -533,15 +533,16 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     }
     print(' Detected verse: $detectedVerseNumber');
     List<ContextMenuButtonItem> buttonItems = [];
-    buttonItems.add(
-      ContextMenuButtonItem(
-        label: isArabic ? 'نسخ' : 'Copy',
-        onPressed: () {
-          Clipboard.setData(ClipboardData(text: selectedText));
-          editableTextState.hideToolbar();
-        },
-      ),
-    );
+buttonItems.add(
+  ContextMenuButtonItem(
+    label: isArabic ? 'نسخ' : 'Copy',
+    onPressed: () {
+      String cleanedText = _cleanTextForCopy(selectedText);
+      Clipboard.setData(ClipboardData(text: cleanedText));
+      editableTextState.hideToolbar();
+    },
+  ),
+);
     buttonItems.add(
       ContextMenuButtonItem(
         label: isArabic ? 'مشاركة' : 'Share',
@@ -695,6 +696,31 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     
     print('  ✅ Underline applied to ${spannedVerses.length} verse(s)');
     _saveUnderlinedRanges();
+  }
+
+  String _cleanTextForCopy(String selectedText) {
+    String cleaned = selectedText;
+    
+    // Remove directional markers first
+    cleaned = cleaned.replaceAll('\u200F', ''); // RTL mark
+    cleaned = cleaned.replaceAll('\u2066', ''); // LRI mark
+    cleaned = cleaned.replaceAll('\u2069', ''); // PDI mark
+    cleaned = cleaned.replaceAll('\uFFFC', ''); // Object replacement character
+    
+    // Remove footnote references [1], [2], etc.
+    cleaned = cleaned.replaceAll(RegExp(r'\[\d+\]'), '');
+    
+    // Remove ALL standalone numbers (verse numbers)
+    // This matches any sequence of digits that are standalone
+    cleaned = cleaned.replaceAll(RegExp(r'\d+'), '');
+    
+    // Clean up multiple spaces that might result from removing numbers
+    cleaned = cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
+    
+    // Clean up dots/periods that might be left alone after removing numbers
+    cleaned = cleaned.replaceAll(RegExp(r'\s*\.\s*'), '. ').trim();
+    
+    return cleaned;
   }
 
   int _findBestMatch(String original, String target) {
