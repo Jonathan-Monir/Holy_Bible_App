@@ -10,6 +10,8 @@ import 'dart:convert';
 import 'bible_data.dart';
 import 'dart:math';
 import 'package:google_fonts/google_fonts.dart';
+// import 'package:flutter/material/selectable_text_arabic.dart';
+import 'arabic_selectable_text.dart';  // ← add this line
 
 class ChapterContentPage extends StatefulWidget {
   final String bookName;
@@ -38,6 +40,8 @@ class ChapterContentPage extends StatefulWidget {
 }
 
 class _ChapterContentPageState extends State<ChapterContentPage> {
+
+  static const double _lineHeight = 1.8;  // Adjust this value as needed
   String chapterContent = '';
   bool isLoading = true;
   List<VerseData> verses = [];
@@ -319,15 +323,9 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         continue;
       }
       
-      // Account for invisible SizedBox marker (1 character: U+FFFC)
-      offset += 1;
-      
-      // NOW INCLUDE THE VERSE NUMBER IN THE RANGE
-      int start = offset;  // Start BEFORE verse number
-      
-      // Account for verse number text (e.g., "1 " = 2 characters)
-      String verseNumText = '${verse.number} ';
-      offset += verseNumText.length;
+      // Account for WidgetSpan verse number (1 character: U+FFFC)
+      int start = offset;  // Start at the WidgetSpan
+      offset += 1;  // The WidgetSpan itself
       
       // Add the actual verse content length
       String processedText = removeDiacritics ? BibleData.removeTashkeel(verse.text) : verse.text;
@@ -449,23 +447,13 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
             fontWeight: FontWeight.bold,
             color: themeProvider.primaryTextColor,
             fontSize: widget.fontSize * 1.1,
+            height: 1.8,  // Add line height here
           ),
         ));
         allSpans.add(const TextSpan(text: '\n\n'));
       } else {
         final verseKey = _verseKeys[verse.number] ??= GlobalKey();
         
-        // Store key reference for scrolling (attach to invisible marker)
-        allSpans.add(WidgetSpan(
-          alignment: PlaceholderAlignment.baseline,
-          baseline: TextBaseline.alphabetic,
-          child: SizedBox(
-            key: verseKey,
-            width: 0,
-            height: 0,
-          ),
-        ));
-
         // Check if verse number should be highlighted/underlined
         List<TextRange> hlRanges = highlightedRanges[_chapterKey]?[verse.number] ?? [];
         List<TextRange> ulRanges = underlinedRanges[_chapterKey]?[verse.number] ?? [];
@@ -474,20 +462,25 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         bool verseNumHighlighted = hlRanges.any((r) => r.start == 0 || r.start < verseNumText.length);
         bool verseNumUnderlined = ulRanges.any((r) => r.start == 0 || r.start < verseNumText.length);
 
-        // Add verse number as TextSpan with potential highlighting/underlining
-        allSpans.add(TextSpan(
-          text: verseNumText,
-          style: TextStyle(
-            fontSize: widget.fontSize * 0.8,
-            fontWeight: FontWeight.bold,
-            color: themeProvider.verseNumberColor,
-            fontFamily: isArabic ? widget.fontFamily : 'serif',
-            letterSpacing: 0.5,
-            // Apply highlighting/underlining to verse numbers
-            backgroundColor: verseNumHighlighted ? Colors.yellow : null,
-            decoration: verseNumUnderlined ? TextDecoration.underline : null,
-            decorationColor: Theme.of(context).primaryColor,
-            decorationThickness: 2,
+        // Add verse number as TextSpan with potential highlighting/underlining AND key for scrolling
+        allSpans.add(WidgetSpan(
+          alignment: PlaceholderAlignment.baseline,
+          baseline: TextBaseline.alphabetic,
+          child: Text(
+            verseNumText,
+            key: verseKey,
+            style: TextStyle(
+              fontSize: widget.fontSize * 0.8,
+              fontWeight: FontWeight.bold,
+              color: themeProvider.verseNumberColor,
+              fontFamily: isArabic ? widget.fontFamily : 'serif',
+              letterSpacing: 0.5,
+              height: 1.8,  // Add line height here
+              backgroundColor: verseNumHighlighted ? Colors.yellow : null,
+              decoration: verseNumUnderlined ? TextDecoration.underline : null,
+              decorationColor: Theme.of(context).primaryColor,
+              decorationThickness: 2,
+            ),
           ),
         ));
                 
@@ -499,10 +492,16 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       }
     }
     
-    return SelectableText.rich(
+    return FixedSelectableText.rich(
       TextSpan(children: allSpans),
       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
       textAlign: TextAlign.start,
+      strutStyle: StrutStyle(
+        fontSize: widget.fontSize,
+        height: _lineHeight,  // Use your constant
+        forceStrutHeight: true,  // This is critical - forces consistent line spacing
+        fontFamily: isArabic ? widget.fontFamily : 'serif',
+      ),
       contextMenuBuilder: (context, editableTextState) {
         return _buildVerseContextMenuWithDetection(context, editableTextState, isArabic);
       },
@@ -803,7 +802,7 @@ buttonItems.add(
             color: themeProvider.footnoteNumberColor,
             fontWeight: FontWeight.bold,
             fontFeatures: const [FontFeature.superscripts()],
-            // Apply highlighting/underlining to footnote numbers
+            height: 1.8,  // Add line height here
             backgroundColor: footnoteHighlighted ? Colors.yellow : null,
             decoration: footnoteUnderlined ? TextDecoration.underline : null,
             decorationColor: Theme.of(context).primaryColor,
@@ -1027,12 +1026,17 @@ buttonItems.add(
                                           ),
                                         ),
                                         Expanded(
-                                          child: SelectableText(
+                                          child: FixedSelectableText(
                                             footnoteContent,
                                             style: _getFontStyle(isArabic).copyWith(
                                               fontSize: widget.fontSize * 0.85,
                                               color: themeProvider.secondaryTextColor,
-                                              height: 1.6,
+                                            ),
+                                            strutStyle: StrutStyle(
+                                              fontSize: widget.fontSize * 0.85,
+                                              height: 1.0,
+                                              forceStrutHeight: true,
+                                              fontFamily: isArabic ? widget.fontFamily : 'serif',
                                             ),
                                             textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
                                             textAlign: isArabic ? TextAlign.right : TextAlign.left,
