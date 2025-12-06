@@ -1,4 +1,6 @@
 // lib/chapter_content_page.dart
+
+import 'package:flutter/scheduler.dart';  // ← ADD THIS LINE
 import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 import 'theme_provider.dart';
@@ -41,6 +43,8 @@ class ChapterContentPage extends StatefulWidget {
 
 class _ChapterContentPageState extends State<ChapterContentPage> {
 
+
+
   static const double _lineHeight = 1.8;  // Adjust this value as needed
   String chapterContent = '';
   bool isLoading = true;
@@ -56,6 +60,12 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   Map<int, TextRange> verseTextRanges = {};
   late ScrollController _scrollController;
 
+  // ADD THESE NEW LINES:
+  final Map<int, GlobalKey> _verseNumberKeys = {};
+  final Map<int, GlobalKey> _footnoteNumberKeys = {};  // ← ADD THIS LINE
+  bool _isSwappingPositions = false;
+  Size? _lastKnownSize;
+
   @override
   void dispose() {
     _scrollController.dispose();
@@ -68,6 +78,29 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       _scrollController = ScrollController();
       _loadSavedAnnotations();
       _loadChapterContent();
+      
+      // Listen for orientation/size changes
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _scheduleOrientationListener();
+        }
+      });
+  }
+
+  void _scheduleOrientationListener() {
+    // This will detect when the widget rebuilds due to orientation change
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final newSize = MediaQuery.of(context).size;
+        if (_lastKnownSize != null && _lastKnownSize != newSize) {
+          print('📐 Size changed: $_lastKnownSize → $newSize');
+          _resetAllVerseOffsets();
+          _schedulePositionSwapping();
+        }
+        _lastKnownSize = newSize;
+        _scheduleOrientationListener(); // Keep listening
+      }
+    });
   }
 
   @override
@@ -78,6 +111,13 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         oldWidget.removeDiacritics != widget.removeDiacritics) {
       _loadSavedAnnotations();
       _loadChapterContent();
+    }
+    
+    // Reset and recalculate positions if fontSize or fontFamily changed
+    if (oldWidget.fontSize != widget.fontSize || 
+        oldWidget.fontFamily != widget.fontFamily) {
+      _resetAllVerseOffsets();
+      _schedulePositionSwapping();
     }
   }
 
@@ -214,6 +254,9 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
           footnotes = fn;
           isLoading = false;
         });
+        
+        // ADD THIS LINE:
+        _schedulePositionSwapping();
       }
     } catch (e) {
       if (mounted) {
@@ -463,23 +506,23 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         bool verseNumUnderlined = ulRanges.any((r) => r.start == 0 || r.start < verseNumText.length);
 
         // Add verse number as TextSpan with potential highlighting/underlining AND key for scrolling
+        final verseNumberKey = _verseNumberKeys[verse.number] ??= GlobalKey();
+
         allSpans.add(WidgetSpan(
           alignment: PlaceholderAlignment.baseline,
           baseline: TextBaseline.alphabetic,
-          child: Text(
-            verseNumText,
-            key: verseKey,
-            style: TextStyle(
-              fontSize: widget.fontSize * 0.8,
-              fontWeight: FontWeight.bold,
-              color: themeProvider.verseNumberColor,
+          child: Directionality(
+            textDirection: TextDirection.ltr,  // Force LTR for verse numbers
+            child: _VerseNumberWidget(
+              key: verseNumberKey,
+              verseKey: verseKey,
+              verseNumText: verseNumText,
+              fontSize: widget.fontSize,
               fontFamily: isArabic ? widget.fontFamily : 'serif',
-              letterSpacing: 0.5,
-              height: 1.8,  // Add line height here
-              backgroundColor: verseNumHighlighted ? Colors.yellow : null,
-              decoration: verseNumUnderlined ? TextDecoration.underline : null,
-              decorationColor: Theme.of(context).primaryColor,
-              decorationThickness: 2,
+              color: themeProvider.verseNumberColor,
+              isHighlighted: verseNumHighlighted,
+              isUnderlined: verseNumUnderlined,
+              primaryColor: Theme.of(context).primaryColor,
             ),
           ),
         ));
@@ -794,23 +837,22 @@ buttonItems.add(
       bool footnoteUnderlined = ulRanges.any((r) => r.start <= start && r.end >= end);
       
       // Add footnote number with potential highlighting/underlining
-      spans.add(
-        TextSpan(
-          text: '\u2066$footnoteNum\u2069',
-          style: TextStyle(
-            fontSize: widget.fontSize * 0.65,
-            color: themeProvider.footnoteNumberColor,
-            fontWeight: FontWeight.bold,
-            fontFeatures: const [FontFeature.superscripts()],
-            height: 1.8,  // Add line height here
-            backgroundColor: footnoteHighlighted ? Colors.yellow : null,
-            decoration: footnoteUnderlined ? TextDecoration.underline : null,
-            decorationColor: Theme.of(context).primaryColor,
-            decorationThickness: 2,
-          ),
-          recognizer: TapGestureRecognizer()..onTap = () => _scrollToFootnote(footnoteNum),
+      final footnoteNumberKey = _footnoteNumberKeys[footnoteNum] ??= GlobalKey();
+
+      spans.add(WidgetSpan(
+        alignment: PlaceholderAlignment.baseline,
+        baseline: TextBaseline.alphabetic,
+        child: _FootnoteNumberWidget(
+          key: footnoteNumberKey,
+          footnoteNum: footnoteNum,
+          fontSize: widget.fontSize,
+          color: themeProvider.footnoteNumberColor,
+          isHighlighted: footnoteHighlighted,
+          isUnderlined: footnoteUnderlined,
+          primaryColor: Theme.of(context).primaryColor,
+          onTap: () => _scrollToFootnote(footnoteNum),
         ),
-      );
+      ));
             
       lastEnd = end;
     }
@@ -1077,6 +1119,215 @@ buttonItems.add(
       ),
     );
   }
+  void _schedulePositionSwapping() {
+    print('📅 SCHEDULING position swap... mounted=$mounted, _isSwappingPositions=$_isSwappingPositions');
+    
+    if (!mounted || _isSwappingPositions) return;
+    
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      print('⏰ POST-FRAME CALLBACK TRIGGERED');
+      if (!mounted) {
+        print('❌ Not mounted anymore');
+        return;
+      }
+      _swapVerseNumberPositions();
+    });
+  }
+
+  void _swapVerseNumberPositions() {
+    if (!mounted || _isSwappingPositions) {
+      print('⚠️ SWAP SKIPPED: mounted=$mounted, _isSwappingPositions=$_isSwappingPositions');
+      return;
+    }
+    
+    print('🔄 ========== STARTING POSITION SWAP ==========');
+    print('📊 Total verse number keys: ${_verseNumberKeys.length}');
+
+    // Reset all offsets first
+    _resetAllVerseOffsets();
+
+    setState(() {
+      _isSwappingPositions = true;
+    });
+
+    try {
+      // Group verse numbers by their Y position (same line)
+      Map<double, List<_VersePosition>> lineGroups = {};
+      
+      for (var entry in _verseNumberKeys.entries) {
+        final verseNum = entry.key;
+        final key = entry.value;
+        final context = key.currentContext;
+        
+        print('🔍 Verse $verseNum: context=${context != null ? "EXISTS" : "NULL"}');
+        
+        if (context == null) continue;
+        
+        final renderBox = context.findRenderObject() as RenderBox?;
+        print('   RenderBox: ${renderBox != null ? "EXISTS" : "NULL"}');
+        
+        if (renderBox != null && renderBox.hasSize) {
+          final position = renderBox.localToGlobal(Offset.zero);
+          final yPos = (position.dy / 10).round() * 10.0;
+          
+          print('   Position: x=${position.dx.toStringAsFixed(2)}, y=${position.dy.toStringAsFixed(2)} (grouped as y=$yPos)');
+          
+          if (!lineGroups.containsKey(yPos)) {
+            lineGroups[yPos] = [];
+          }
+          
+          lineGroups[yPos]!.add(_VersePosition(
+            verseNumber: verseNum,
+            xPosition: position.dx,
+            key: key,
+          ));
+        }
+      }
+
+
+      for (var entry in _footnoteNumberKeys.entries) {
+        final footnoteNum = entry.key;
+        final key = entry.value;
+        final context = key.currentContext;
+        
+        print('🔍 Footnote $footnoteNum: context=${context != null ? "EXISTS" : "NULL"}');
+        
+        if (context == null) continue;
+        
+        final renderBox = context.findRenderObject() as RenderBox?;
+        print('   RenderBox: ${renderBox != null ? "EXISTS" : "NULL"}');
+        
+        if (renderBox != null && renderBox.hasSize) {
+          final position = renderBox.localToGlobal(Offset.zero);
+          final yPos = (position.dy / 10).round() * 10.0;
+          
+          print('   Position: x=${position.dx.toStringAsFixed(2)}, y=${position.dy.toStringAsFixed(2)} (grouped as y=$yPos)');
+          
+          if (!lineGroups.containsKey(yPos)) {
+            lineGroups[yPos] = [];
+          }
+          
+          lineGroups[yPos]!.add(_VersePosition(
+            verseNumber: -footnoteNum,  // Negative to distinguish from verse numbers
+            xPosition: position.dx,
+            key: key,
+          ));
+        }
+      }
+
+      
+      print('\n📋 LINE GROUPS FOUND: ${lineGroups.length}');
+      
+      // For each line with multiple verse numbers, swap them
+      int lineIndex = 0;
+      for (var entry in lineGroups.entries) {
+        final yPos = entry.key;
+        final positions = entry.value;
+        lineIndex++;
+        
+        print('\n📍 LINE $lineIndex (y=$yPos): ${positions.length} verses');
+        
+        if (positions.length > 1) {
+          // Sort by X position
+          positions.sort((a, b) => a.xPosition.compareTo(b.xPosition));
+          
+          print('   Before swap order: ${positions.map((p) => p.verseNumber).toList()}');
+          
+          // Apply swapping by reversing the list
+          for (int i = 0; i < positions.length; i++) {
+            final currentPos = positions[i];
+            final targetIndex = positions.length - 1 - i;
+            final targetPos = positions[targetIndex];
+            
+            print('   Verse ${currentPos.verseNumber}: currentX=${currentPos.xPosition.toStringAsFixed(2)} → targetX=${targetPos.xPosition.toStringAsFixed(2)}');
+            
+            final context = currentPos.key.currentContext;
+            if (context != null) {
+              // Try to get the state directly from the StatefulElement
+              final element = context as StatefulElement?;
+              final offsetX = targetPos.xPosition - currentPos.xPosition;
+
+              // Handle both verse numbers (positive) and footnote numbers (negative)
+              if (currentPos.verseNumber > 0) {
+                // Verse number
+                final state = element?.state as _VerseNumberWidgetState?;
+                if (state != null) {
+                  print('   ✅ Applying offset: ${offsetX.toStringAsFixed(2)}px to verse ${currentPos.verseNumber}');
+                  state.updateOffset(offsetX);
+                } else {
+                  print('   ❌ State is NULL for verse ${currentPos.verseNumber}');
+                }
+              } else {
+                // Footnote number (negative verseNumber)
+                final state = element?.state as _FootnoteNumberWidgetState?;
+                if (state != null) {
+                  print('   ✅ Applying offset: ${offsetX.toStringAsFixed(2)}px to footnote ${-currentPos.verseNumber}');
+                  state.updateOffset(offsetX);
+                } else {
+                  print('   ❌ State is NULL for footnote ${-currentPos.verseNumber}');
+                }
+              }
+            } else {
+              print('   ❌ Context is NULL for verse ${currentPos.verseNumber}');
+            }
+          }
+          
+          print('   After swap order should be: ${positions.reversed.map((p) => p.verseNumber).toList()}');
+        } else {
+          print('   Single verse on line, no swap needed: verse ${positions[0].verseNumber}');
+        }
+      }
+      
+      print('\n✅ ========== SWAP COMPLETE ==========\n');
+    } catch (e, stackTrace) {
+      print('❌ ERROR IN SWAP: $e');
+      print('Stack trace: $stackTrace');
+    } finally {
+      if (mounted) {
+        // Force a rebuild to apply all the transforms
+        setState(() {
+          _isSwappingPositions = false;
+        });
+        
+        // Schedule another frame to ensure transforms are applied
+        SchedulerBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            setState(() {
+              // Empty setState to force rebuild with new offsets
+            });
+          }
+        });
+      }
+    }
+  }
+
+  void _resetAllVerseOffsets() {
+    print('🔄 RESETTING all verse offsets');
+    
+    for (var entry in _verseNumberKeys.entries) {
+      final context = entry.value.currentContext;
+      if (context != null) {
+        final element = context as StatefulElement?;
+        final state = element?.state as _VerseNumberWidgetState?;
+        
+        if (state != null) {
+          state.updateOffset(0.0);
+        }
+      }
+    }
+
+    for (var entry in _footnoteNumberKeys.entries) {
+      final context = entry.value.currentContext;
+      if (context != null) {
+        final element = context as StatefulElement?;
+        final state = element?.state as _FootnoteNumberWidgetState?;
+        
+        if (state != null) {
+          state.updateOffset(0.0);
+        }
+      }
+    }
+  }
 }
 
 class VerseData {
@@ -1090,3 +1341,147 @@ class VerseData {
     this.footnoteRefs = const [],
   });
 }
+
+
+class _VersePosition {
+  final int verseNumber;
+  final double xPosition;
+  final GlobalKey key;
+  
+  _VersePosition({
+    required this.verseNumber,
+    required this.xPosition,
+    required this.key,
+  });
+}
+
+class _VerseNumberWidget extends StatefulWidget {
+  final GlobalKey verseKey;
+  final String verseNumText;
+  final double fontSize;
+  final String fontFamily;
+  final Color color;
+  final bool isHighlighted;
+  final bool isUnderlined;
+  final Color primaryColor;
+  
+  const _VerseNumberWidget({
+    required Key key,
+    required this.verseKey,
+    required this.verseNumText,
+    required this.fontSize,
+    required this.fontFamily,
+    required this.color,
+    required this.isHighlighted,
+    required this.isUnderlined,
+    required this.primaryColor,
+  }) : super(key: key);
+  
+  @override
+  State<_VerseNumberWidget> createState() => _VerseNumberWidgetState();
+}
+
+class _FootnoteNumberWidget extends StatefulWidget {
+  final int footnoteNum;
+  final double fontSize;
+  final Color color;
+  final bool isHighlighted;
+  final bool isUnderlined;
+  final Color primaryColor;
+  final VoidCallback onTap;
+  
+  const _FootnoteNumberWidget({
+    required Key key,
+    required this.footnoteNum,
+    required this.fontSize,
+    required this.color,
+    required this.isHighlighted,
+    required this.isUnderlined,
+    required this.primaryColor,
+    required this.onTap,
+  }) : super(key: key);
+  
+  @override
+  State<_FootnoteNumberWidget> createState() => _FootnoteNumberWidgetState();
+}
+
+class _FootnoteNumberWidgetState extends State<_FootnoteNumberWidget> {
+  double _offsetX = 0.0;
+  
+  void updateOffset(double newOffset) {
+    if (_offsetX != newOffset) {
+      setState(() {
+        _offsetX = newOffset;
+      });
+    }
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    print('🎨 Building footnote number ${widget.footnoteNum} with offset: $_offsetX');
+    
+    return Transform.translate(
+      offset: Offset(_offsetX, 0),
+      transformHitTests: true,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Text(
+          '\u2066${widget.footnoteNum}\u2069',
+          style: TextStyle(
+            fontSize: widget.fontSize * 0.65,
+            fontWeight: FontWeight.bold,
+            color: widget.color,
+            fontFeatures: const [FontFeature.superscripts()],
+            height: 1.8,
+            backgroundColor: widget.isHighlighted ? Colors.yellow : null,
+            decoration: widget.isUnderlined ? TextDecoration.underline : null,
+            decorationColor: widget.primaryColor,
+            decorationThickness: 2,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VerseNumberWidgetState extends State<_VerseNumberWidget> {
+  double _offsetX = 0.0;  // Move offset to STATE
+  
+  void updateOffset(double newOffset) {
+    if (_offsetX != newOffset) {
+      setState(() {
+        _offsetX = newOffset;
+      });
+    }
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    print('🎨 Building verse number widget with offset: $_offsetX');
+    
+    return Transform.translate(
+      offset: Offset(_offsetX, 0),
+      transformHitTests: true,
+      child: Text(
+        widget.verseNumText,
+        key: widget.verseKey,
+        style: TextStyle(
+          fontSize: widget.fontSize * 0.8,
+          fontWeight: FontWeight.bold,
+          color: widget.color,
+          fontFamily: widget.fontFamily,
+          letterSpacing: 0.5,
+          height: 1.8,
+          backgroundColor: widget.isHighlighted ? Colors.yellow : null,
+          decoration: widget.isUnderlined ? TextDecoration.underline : null,
+          decorationColor: widget.primaryColor,
+          decorationThickness: 2,
+        ),
+      ),
+    );
+  }
+}
+
+
+
+// starting the swapping thing
