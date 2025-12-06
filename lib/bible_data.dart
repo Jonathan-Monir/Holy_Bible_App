@@ -208,6 +208,8 @@ class BibleData {
 
 // Add this NEW method right after getChapterContent (around line 180)
 static Future<Map<int, String>> _loadAndCacheBook(String fileName, String bookName, String arabicName) async {
+  print('📚 Loading book: $fileName');
+  
   String? content;
   bool foundContent = false;
   
@@ -216,39 +218,51 @@ static Future<Map<int, String>> _loadAndCacheBook(String fileName, String bookNa
       final bibleDocsPath = await getBibleDocsPath();
       final externalFile = File('$bibleDocsPath/$fileName');
       
+      print('📂 Checking external file: ${externalFile.path}');
+      
       if (await externalFile.exists()) {
         try {
           content = await externalFile.readAsString();
           foundContent = true;
+          print('✅ Loaded from external: ${content.length} characters');
         } catch (e) {
           print('❌ Error reading file $fileName: $e');
         }
+      } else {
+        print('⚠ External file not found');
       }
     }
     
     if (!foundContent) {
       try {
+        print('📦 Trying to load from assets: assets/bible_docs/$fileName');
         content = await rootBundle.loadString('assets/bible_docs/$fileName');
         foundContent = true;
+        print('✅ Loaded from assets: ${content.length} characters');
       } catch (e) {
         print('❌ File not found in assets: assets/bible_docs/$fileName');
       }
     }
     
     if (!foundContent) {
+      print('❌ No content found for $fileName');
       if (!kIsWeb) {
         await createMissingBookFile(fileName, bookName, arabicName);
       }
       return {1: 'This book isn\'t available yet'};
     }
     
+    print('🔄 Parsing document content...');
     final chapters = _parseDocumentContent(content!);
+    print('✅ Parsed ${chapters.length} chapters');
+    
     _bookCache[fileName] = chapters;
     
     return chapters;
     
-  } catch (e) {
+  } catch (e, stackTrace) {
     print('❌ Error loading book: $e');
+    print('❌ Stack trace: $stackTrace');
     return {1: 'This book isn\'t available yet'};
   }
 }

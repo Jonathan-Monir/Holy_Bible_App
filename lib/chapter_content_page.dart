@@ -56,13 +56,16 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   String footnotes = '';
   final GlobalKey _footnotesKey = GlobalKey();
   final Map<int, GlobalKey> _footnoteKeys = {};
-  final Map<int, GlobalKey> _verseKeys = {};
+
+  // NEW - Add this instead:
+  final Map<int, GlobalKey> _verseKeys = {};  // Keep for verse scrolling (int key for verse number)
+  final Map<String, GlobalKey> _uniqueVerseKeys = {};  // NEW: For unique widget instances (string key for uniqueness)
   Map<int, TextRange> verseTextRanges = {};
   late ScrollController _scrollController;
 
   // ADD THESE NEW LINES:
   final Map<int, GlobalKey> _verseNumberKeys = {};
-  final Map<int, GlobalKey> _footnoteNumberKeys = {};  // ← ADD THIS LINE
+  final Map<String, GlobalKey> _footnoteNumberKeys = {};  // Changed from int to String
   bool _isSwappingPositions = false;
   Size? _lastKnownSize;
 
@@ -93,7 +96,6 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       if (mounted) {
         final newSize = MediaQuery.of(context).size;
         if (_lastKnownSize != null && _lastKnownSize != newSize) {
-          print('📐 Size changed: $_lastKnownSize → $newSize');
           _resetAllVerseOffsets();
           _schedulePositionSwapping();
         }
@@ -157,7 +159,6 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         }
       }
     } catch (e) {
-      print('Error loading annotations: $e');
     }
   }
 
@@ -173,7 +174,6 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       }
       await prefs.setString('highlighted_ranges', json.encode(data));
     } catch (e) {
-      print('Error saving highlighted ranges: $e');
     }
   }
 
@@ -189,7 +189,6 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       }
       await prefs.setString('underlined_ranges', json.encode(data));
     } catch (e) {
-      print('Error saving underlined ranges: $e');
     }
   }
 
@@ -241,24 +240,51 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   }
 
   Future<void> _loadChapterContent() async {
+    print('🔵 START: Loading chapter ${widget.bookIndex} - ${widget.chapterNumber}');
+    
     try {
       final content = await BibleData.getChapterContent(widget.bookIndex, widget.chapterNumber);
+      print('📄 Content loaded, length: ${content.length}');
+      print('📄 First 200 chars: ${content.substring(0, min(200, content.length))}');
+      
       final fn = await BibleData.getChapterFootnotes(widget.bookIndex, widget.chapterNumber);
+      print('📝 Footnotes loaded, length: ${fn.length}');
       
       if (mounted) {
+        print('🔄 Parsing verses...');
+        final parsedVerses = _parseVersesToList(content);
+        print('✅ Parsed ${parsedVerses.length} verses');
+        
+        for (int i = 0; i < min(5, parsedVerses.length); i++) {
+          print('   Verse ${parsedVerses[i].number}: ${parsedVerses[i].text.substring(0, min(50, parsedVerses[i].text.length))}...');
+        }
+        
+        print('🔄 Computing verse offsets...');
+        final offsets = _computeVerseOffsets(parsedVerses);
+        print('✅ Computed ${offsets.length} offsets');
+        
+        print('🔄 Computing verse text ranges...');
+        final ranges = _computeVerseTextRanges(parsedVerses, widget.removeDiacritics);
+        print('✅ Computed ${ranges.length} ranges');
+        
         setState(() {
           chapterContent = content;
-          verses = _parseVersesToList(content);
-          verseOffsets = _computeVerseOffsets(verses);
-          verseTextRanges = _computeVerseTextRanges(verses, widget.removeDiacritics);
+          verses = parsedVerses;
+          verseOffsets = offsets;
+          verseTextRanges = ranges;
           footnotes = fn;
           isLoading = false;
         });
         
+        print('✅ DONE: Chapter loaded successfully');
+        
         // ADD THIS LINE:
         _schedulePositionSwapping();
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('❌ ERROR loading chapter: $e');
+      print('❌ Stack trace: $stackTrace');
+      
       if (mounted) {
         setState(() {
           chapterContent = 'Error loading chapter: $e';
@@ -270,8 +296,16 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   }
 
   List<VerseData> _parseVersesToList(String content) {
+    print('🔍 PARSE: Starting to parse content, length: ${content.length}');
+    
     List<VerseData> verseList = [];
     List<String> lines = content.split('\n');
+    
+    print('🔍 PARSE: Split into ${lines.length} lines');
+    
+    for (int i = 0; i < min(3, lines.length); i++) {
+      print('   Line $i: ${lines[i].substring(0, min(100, lines[i].length))}');
+    }
     
     for (String line in lines) {
       if (line.trim().isEmpty) continue;
@@ -302,14 +336,21 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
             text: verseText,
             footnoteRefs: footnoteRefs,
           ));
+          
+          if (verseList.length <= 3) {
+            print('   ✓ Added verse $verseNumber: ${verseText.substring(0, min(50, verseText.length))}...');
+          }
         }
       } else {
+        // Line doesn't match verse pattern - might be chapter heading
         if (line.trim().isNotEmpty) {
+          print('   ⚠ Non-verse line: ${line.substring(0, min(100, line.length))}');
           verseList.add(VerseData(number: 0, text: line.trim()));
         }
       }
     }
     
+    print('🔍 PARSE: Complete, found ${verseList.length} verses');
     return verseList;
   }
 
@@ -495,7 +536,17 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         ));
         allSpans.add(const TextSpan(text: '\n\n'));
       } else {
-        final verseKey = _verseKeys[verse.number] ??= GlobalKey();
+        // Create a unique key using both verse number and a counter to handle duplicates
+        // Create truly unique key for each widget instance
+        final uniqueKeyIdentifier = '${verse.number}_$i';
+        if (!_uniqueVerseKeys.containsKey(uniqueKeyIdentifier)) {
+          _uniqueVerseKeys[uniqueKeyIdentifier] = GlobalKey();
+        }
+        if (!_verseKeys.containsKey(verse.number)) {
+          _verseKeys[verse.number] = GlobalKey();
+        }
+        final verseKey = _verseKeys[verse.number]!;  // For scrolling
+        final uniqueWidgetKey = _uniqueVerseKeys[uniqueKeyIdentifier]!;  // For widget
         
         // Check if verse number should be highlighted/underlined
         List<TextRange> hlRanges = highlightedRanges[_chapterKey]?[verse.number] ?? [];
@@ -505,8 +556,12 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         bool verseNumHighlighted = hlRanges.any((r) => r.start == 0 || r.start < verseNumText.length);
         bool verseNumUnderlined = ulRanges.any((r) => r.start == 0 || r.start < verseNumText.length);
 
-        // Add verse number as TextSpan with potential highlighting/underlining AND key for scrolling
-        final verseNumberKey = _verseNumberKeys[verse.number] ??= GlobalKey();
+        // Use unique key for the widget instance
+        final verseNumberKeyId = 'vn_${verse.number}_$i';
+        final verseNumberKey = _verseNumberKeys.putIfAbsent(
+          verse.number, 
+          () => GlobalKey()
+        );
 
         allSpans.add(WidgetSpan(
           alignment: PlaceholderAlignment.baseline,
@@ -514,7 +569,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
           child: Directionality(
             textDirection: TextDirection.ltr,  // Force LTR for verse numbers
             child: _VerseNumberWidget(
-              key: verseNumberKey,
+              key: uniqueWidgetKey,  // Changed this line
               verseKey: verseKey,
               verseNumText: verseNumText,
               fontSize: widget.fontSize,
@@ -554,16 +609,13 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   Widget _buildVerseContextMenuWithDetection(BuildContext context, EditableTextState editableTextState, bool isArabic) {
     final TextEditingValue value = editableTextState.textEditingValue;
     final TextSelection selection = value.selection;
-    print('🔍 CONTEXT MENU DEBUG:');
-    print(' Selection valid: ${selection.isValid}');
-    print(' Selection collapsed: ${selection.isCollapsed}');
-    print(' Selection start: ${selection.start}, end: ${selection.end}');
+    
     if (!selection.isValid || selection.isCollapsed) {
-      print(' ❌ Selection invalid or collapsed');
       return const SizedBox.shrink();
     }
+    
     final String selectedText = value.text.substring(selection.start, selection.end);
-    print(' Selected text: "${selectedText.substring(0, min(50, selectedText.length))}"...');
+    
     // Detect verse using precomputed ranges
     int? detectedVerseNumber;
     for (final entry in verseTextRanges.entries) {
@@ -573,18 +625,20 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         break;
       }
     }
-    print(' Detected verse: $detectedVerseNumber');
+    
     List<ContextMenuButtonItem> buttonItems = [];
-buttonItems.add(
-  ContextMenuButtonItem(
-    label: isArabic ? 'نسخ' : 'Copy',
-    onPressed: () {
-      String cleanedText = _cleanTextForCopy(selectedText);
-      Clipboard.setData(ClipboardData(text: cleanedText));
-      editableTextState.hideToolbar();
-    },
-  ),
-);
+    
+    buttonItems.add(
+      ContextMenuButtonItem(
+        label: isArabic ? 'نسخ' : 'Copy',
+        onPressed: () {
+          String cleanedText = _cleanTextForCopy(selectedText);
+          Clipboard.setData(ClipboardData(text: cleanedText));
+          editableTextState.hideToolbar();
+        },
+      ),
+    );
+    
     buttonItems.add(
       ContextMenuButtonItem(
         label: isArabic ? 'مشاركة' : 'Share',
@@ -594,32 +648,29 @@ buttonItems.add(
         },
       ),
     );
+    
     if (detectedVerseNumber != null) {
-      print(' ✅ Adding Highlight and Underline buttons for verse $detectedVerseNumber');
       buttonItems.add(
         ContextMenuButtonItem(
           label: isArabic ? 'تمييز' : 'Highlight',
           onPressed: () {
-            print('🎨 Highlight button pressed for verse $detectedVerseNumber');
             _handleVerseHighlight(value.text, selection, detectedVerseNumber!, isArabic);
             editableTextState.hideToolbar();
           },
         ),
       );
+      
       buttonItems.add(
         ContextMenuButtonItem(
           label: isArabic ? 'تسطير' : 'Underline',
           onPressed: () {
-            print('📏 Underline button pressed for verse $detectedVerseNumber');
             _handleVerseUnderline(value.text, selection, detectedVerseNumber!, isArabic);
             editableTextState.hideToolbar();
           },
         ),
       );
-    } else {
-      print(' ⚠️ No verse detected - Highlight/Underline buttons NOT added');
     }
-    print(' Total button items: ${buttonItems.length}');
+    
     return AdaptiveTextSelectionToolbar.buttonItems(
       anchors: editableTextState.contextMenuAnchors,
       buttonItems: buttonItems,
@@ -627,11 +678,7 @@ buttonItems.add(
   }
 
   void _handleVerseHighlight(String fullText, TextSelection selection, int firstDetectedVerse, bool isArabic) {
-    print('🎨 MULTI-VERSE HIGHLIGHT DEBUG:');
-    print('  Selection: ${selection.start} to ${selection.end}');
-    
     if (selection.isCollapsed) {
-      print('  ❌ Selection is collapsed');
       return;
     }
     
@@ -639,11 +686,9 @@ buttonItems.add(
     List<int> spannedVerses = _getSpannedVerses(selection);
     
     if (spannedVerses.isEmpty) {
-      print('  ❌ No verses detected in selection');
       return;
     }
     
-    print('  ✅ Selection spans ${spannedVerses.length} verse(s): $spannedVerses');
     
     setState(() {
       if (!highlightedRanges.containsKey(_chapterKey)) {
@@ -664,7 +709,6 @@ buttonItems.add(
             ? verseRange.end - verseRange.start  // Selection extends beyond this verse
             : selection.end - verseRange.start;  // Selection ends within this verse
         
-        print('  📍 Verse $verseNum: highlighting from $highlightStart to $highlightEnd (verse length: ${verseRange.end - verseRange.start})');
         
         TextRange highlightRange = TextRange(start: highlightStart, end: highlightEnd);
         
@@ -679,16 +723,12 @@ buttonItems.add(
       }
     });
     
-    print('  ✅ Highlight applied to ${spannedVerses.length} verse(s)');
     _saveHighlightedRanges();
   }
 
   void _handleVerseUnderline(String fullText, TextSelection selection, int firstDetectedVerse, bool isArabic) {
-    print('📏 MULTI-VERSE UNDERLINE DEBUG:');
-    print('  Selection: ${selection.start} to ${selection.end}');
     
     if (selection.isCollapsed) {
-      print('  ❌ Selection is collapsed');
       return;
     }
     
@@ -696,11 +736,9 @@ buttonItems.add(
     List<int> spannedVerses = _getSpannedVerses(selection);
     
     if (spannedVerses.isEmpty) {
-      print('  ❌ No verses detected in selection');
       return;
     }
     
-    print('  ✅ Selection spans ${spannedVerses.length} verse(s): $spannedVerses');
     
     setState(() {
       if (!underlinedRanges.containsKey(_chapterKey)) {
@@ -721,7 +759,6 @@ buttonItems.add(
             ? verseRange.end - verseRange.start  // Selection extends beyond this verse
             : selection.end - verseRange.start;  // Selection ends within this verse
         
-        print('  📍 Verse $verseNum: underlining from $underlineStart to $underlineEnd (verse length: ${verseRange.end - verseRange.start})');
         
         TextRange underlineRange = TextRange(start: underlineStart, end: underlineEnd);
         
@@ -736,7 +773,6 @@ buttonItems.add(
       }
     });
     
-    print('  ✅ Underline applied to ${spannedVerses.length} verse(s)');
     _saveUnderlinedRanges();
   }
 
@@ -820,11 +856,12 @@ buttonItems.add(
     
     List<Match> matches = footnotePattern.allMatches(processedText).toList();
     
-    for (Match match in matches) {
+    for (int matchIndex = 0; matchIndex < matches.length; matchIndex++) {
+      Match match = matches[matchIndex];
       int start = match.start;
       int end = match.end;
       int footnoteNum = int.parse(match.group(1)!);
-      
+          
       // Add text BEFORE footnote with styling
       if (start > lastEnd) {
         String textBefore = processedText.substring(lastEnd, start);
@@ -836,8 +873,12 @@ buttonItems.add(
       bool footnoteHighlighted = hlRanges.any((r) => r.start <= start && r.end >= end);
       bool footnoteUnderlined = ulRanges.any((r) => r.start <= start && r.end >= end);
       
-      // Add footnote number with potential highlighting/underlining
-      final footnoteNumberKey = _footnoteNumberKeys[footnoteNum] ??= GlobalKey();
+      // Create unique key for each footnote widget instance
+      final footnoteKeyId = 'fn_${footnoteNum}_${verseNumber}_$matchIndex';
+      if (!_footnoteNumberKeys.containsKey(footnoteKeyId)) {
+        _footnoteNumberKeys[footnoteKeyId] = GlobalKey();
+      }
+      final footnoteNumberKey = _footnoteNumberKeys[footnoteKeyId]!;
 
       spans.add(WidgetSpan(
         alignment: PlaceholderAlignment.baseline,
@@ -917,6 +958,8 @@ buttonItems.add(
 
   @override
   Widget build(BuildContext context) {
+    print('🎨 BUILD: isLoading=$isLoading, verses.length=${verses.length}, chapterContent.length=${chapterContent.length}');
+    
     final themeProvider = Provider.of<ThemeProvider>(context);
     bool isArabic = chapterContent.contains(RegExp(r'[\u0600-\u06FF]'));
     
@@ -940,30 +983,30 @@ buttonItems.add(
       child: Column(
         crossAxisAlignment: isArabic ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: Text(
-                '${widget.bookName} ${widget.chapterNumber}',
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  '${widget.bookName} ${widget.chapterNumber}',
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: isArabic ? TextAlign.right : TextAlign.left,
+                  textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
                 ),
-                textAlign: isArabic ? TextAlign.right : TextAlign.left,
-                textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
               ),
-            ),
-          if (hasHighlights)
-            IconButton(
-              onPressed: _clearAllHighlights,
-              icon: const Icon(Icons.highlight_off),
-              tooltip: 'Clear all highlights',
-              color: Colors.red.shade700,
-              iconSize: 28,
-            ),
-          ],
-        ),
+              if (hasHighlights)
+                IconButton(
+                  onPressed: _clearAllHighlights,
+                  icon: const Icon(Icons.highlight_off),
+                  tooltip: 'Clear all highlights',
+                  color: Colors.red.shade700,
+                  iconSize: 28,
+                ),
+            ],
+          ),
           const SizedBox(height: 20),
           Expanded(
             child: isLoading
@@ -1119,15 +1162,13 @@ buttonItems.add(
       ),
     );
   }
+
   void _schedulePositionSwapping() {
-    print('📅 SCHEDULING position swap... mounted=$mounted, _isSwappingPositions=$_isSwappingPositions');
     
     if (!mounted || _isSwappingPositions) return;
     
     SchedulerBinding.instance.addPostFrameCallback((_) {
-      print('⏰ POST-FRAME CALLBACK TRIGGERED');
       if (!mounted) {
-        print('❌ Not mounted anymore');
         return;
       }
       _swapVerseNumberPositions();
@@ -1136,12 +1177,9 @@ buttonItems.add(
 
   void _swapVerseNumberPositions() {
     if (!mounted || _isSwappingPositions) {
-      print('⚠️ SWAP SKIPPED: mounted=$mounted, _isSwappingPositions=$_isSwappingPositions');
       return;
     }
     
-    print('🔄 ========== STARTING POSITION SWAP ==========');
-    print('📊 Total verse number keys: ${_verseNumberKeys.length}');
 
     // Reset all offsets first
     _resetAllVerseOffsets();
@@ -1159,18 +1197,15 @@ buttonItems.add(
         final key = entry.value;
         final context = key.currentContext;
         
-        print('🔍 Verse $verseNum: context=${context != null ? "EXISTS" : "NULL"}');
         
         if (context == null) continue;
         
         final renderBox = context.findRenderObject() as RenderBox?;
-        print('   RenderBox: ${renderBox != null ? "EXISTS" : "NULL"}');
         
         if (renderBox != null && renderBox.hasSize) {
           final position = renderBox.localToGlobal(Offset.zero);
           final yPos = (position.dy / 10).round() * 10.0;
           
-          print('   Position: x=${position.dx.toStringAsFixed(2)}, y=${position.dy.toStringAsFixed(2)} (grouped as y=$yPos)');
           
           if (!lineGroups.containsKey(yPos)) {
             lineGroups[yPos] = [];
@@ -1186,29 +1221,27 @@ buttonItems.add(
 
 
       for (var entry in _footnoteNumberKeys.entries) {
-        final footnoteNum = entry.key;
+        final footnoteKeyId = entry.key;  // This is a String
         final key = entry.value;
         final context = key.currentContext;
         
-        print('🔍 Footnote $footnoteNum: context=${context != null ? "EXISTS" : "NULL"}');
         
         if (context == null) continue;
         
         final renderBox = context.findRenderObject() as RenderBox?;
-        print('   RenderBox: ${renderBox != null ? "EXISTS" : "NULL"}');
         
         if (renderBox != null && renderBox.hasSize) {
           final position = renderBox.localToGlobal(Offset.zero);
           final yPos = (position.dy / 10).round() * 10.0;
           
-          print('   Position: x=${position.dx.toStringAsFixed(2)}, y=${position.dy.toStringAsFixed(2)} (grouped as y=$yPos)');
           
           if (!lineGroups.containsKey(yPos)) {
             lineGroups[yPos] = [];
           }
           
+          // Use hash code as unique identifier (won't conflict with positive verse numbers)
           lineGroups[yPos]!.add(_VersePosition(
-            verseNumber: -footnoteNum,  // Negative to distinguish from verse numbers
+            verseNumber: -footnoteKeyId.hashCode,  // Use hash of string ID
             xPosition: position.dx,
             key: key,
           ));
@@ -1216,7 +1249,6 @@ buttonItems.add(
       }
 
       
-      print('\n📋 LINE GROUPS FOUND: ${lineGroups.length}');
       
       // For each line with multiple verse numbers, swap them
       int lineIndex = 0;
@@ -1225,13 +1257,11 @@ buttonItems.add(
         final positions = entry.value;
         lineIndex++;
         
-        print('\n📍 LINE $lineIndex (y=$yPos): ${positions.length} verses');
         
         if (positions.length > 1) {
           // Sort by X position
           positions.sort((a, b) => a.xPosition.compareTo(b.xPosition));
           
-          print('   Before swap order: ${positions.map((p) => p.verseNumber).toList()}');
           
           // Apply swapping by reversing the list
           for (int i = 0; i < positions.length; i++) {
@@ -1239,7 +1269,6 @@ buttonItems.add(
             final targetIndex = positions.length - 1 - i;
             final targetPos = positions[targetIndex];
             
-            print('   Verse ${currentPos.verseNumber}: currentX=${currentPos.xPosition.toStringAsFixed(2)} → targetX=${targetPos.xPosition.toStringAsFixed(2)}');
             
             final context = currentPos.key.currentContext;
             if (context != null) {
@@ -1252,36 +1281,26 @@ buttonItems.add(
                 // Verse number
                 final state = element?.state as _VerseNumberWidgetState?;
                 if (state != null) {
-                  print('   ✅ Applying offset: ${offsetX.toStringAsFixed(2)}px to verse ${currentPos.verseNumber}');
                   state.updateOffset(offsetX);
                 } else {
-                  print('   ❌ State is NULL for verse ${currentPos.verseNumber}');
                 }
               } else {
                 // Footnote number (negative verseNumber)
                 final state = element?.state as _FootnoteNumberWidgetState?;
                 if (state != null) {
-                  print('   ✅ Applying offset: ${offsetX.toStringAsFixed(2)}px to footnote ${-currentPos.verseNumber}');
                   state.updateOffset(offsetX);
                 } else {
-                  print('   ❌ State is NULL for footnote ${-currentPos.verseNumber}');
                 }
               }
             } else {
-              print('   ❌ Context is NULL for verse ${currentPos.verseNumber}');
             }
           }
           
-          print('   After swap order should be: ${positions.reversed.map((p) => p.verseNumber).toList()}');
         } else {
-          print('   Single verse on line, no swap needed: verse ${positions[0].verseNumber}');
         }
       }
       
-      print('\n✅ ========== SWAP COMPLETE ==========\n');
     } catch (e, stackTrace) {
-      print('❌ ERROR IN SWAP: $e');
-      print('Stack trace: $stackTrace');
     } finally {
       if (mounted) {
         // Force a rebuild to apply all the transforms
@@ -1302,7 +1321,6 @@ buttonItems.add(
   }
 
   void _resetAllVerseOffsets() {
-    print('🔄 RESETTING all verse offsets');
     
     for (var entry in _verseNumberKeys.entries) {
       final context = entry.value.currentContext;
@@ -1418,27 +1436,51 @@ class _FootnoteNumberWidgetState extends State<_FootnoteNumberWidget> {
   
   @override
   Widget build(BuildContext context) {
-    print('🎨 Building footnote number ${widget.footnoteNum} with offset: $_offsetX');
-    
-    return Transform.translate(
-      offset: Offset(_offsetX, 0),
-      transformHitTests: true,
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Text(
-          '\u2066${widget.footnoteNum}\u2069',
-          style: TextStyle(
-            fontSize: widget.fontSize * 0.65,
-            fontWeight: FontWeight.bold,
-            color: widget.color,
-            fontFeatures: const [FontFeature.superscripts()],
-            height: 1.8,
-            backgroundColor: widget.isHighlighted ? Colors.yellow : null,
-            decoration: widget.isUnderlined ? TextDecoration.underline : null,
-            decorationColor: widget.primaryColor,
-            decorationThickness: 2,
-          ),
-        ),
+    return GestureDetector(
+      onTap: widget.onTap,
+      behavior: HitTestBehavior.translucent,
+      child: Transform.translate(
+        offset: Offset(_offsetX, 0),
+        transformHitTests: false,
+        child: widget.isHighlighted
+            ? Container(
+                padding: const EdgeInsets.only(
+                  left: 0.0,
+                  right: 0.0,
+                  top: 5,
+                  bottom: 3,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.yellow,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+                child: Text(
+                  '\u2066${widget.footnoteNum}\u2069',
+                  style: TextStyle(
+                    fontSize: widget.fontSize * 0.65,
+                    fontWeight: FontWeight.bold,
+                    color: widget.color,
+                    fontFeatures: const [FontFeature.superscripts()],
+                    height: 1.8,
+                    decoration: widget.isUnderlined ? TextDecoration.underline : null,
+                    decorationColor: widget.primaryColor,
+                    decorationThickness: 2,
+                  ),
+                ),
+              )
+            : Text(
+                '\u2066${widget.footnoteNum}\u2069',
+                style: TextStyle(
+                  fontSize: widget.fontSize * 0.65,
+                  fontWeight: FontWeight.bold,
+                  color: widget.color,
+                  fontFeatures: const [FontFeature.superscripts()],
+                  height: 1.8,
+                  decoration: widget.isUnderlined ? TextDecoration.underline : null,
+                  decorationColor: widget.primaryColor,
+                  decorationThickness: 2,
+                ),
+              ),
       ),
     );
   }
@@ -1457,27 +1499,52 @@ class _VerseNumberWidgetState extends State<_VerseNumberWidget> {
   
   @override
   Widget build(BuildContext context) {
-    print('🎨 Building verse number widget with offset: $_offsetX');
-    
     return Transform.translate(
       offset: Offset(_offsetX, 0),
       transformHitTests: true,
-      child: Text(
-        widget.verseNumText,
-        key: widget.verseKey,
-        style: TextStyle(
-          fontSize: widget.fontSize * 0.8,
-          fontWeight: FontWeight.bold,
-          color: widget.color,
-          fontFamily: widget.fontFamily,
-          letterSpacing: 0.5,
-          height: 1.8,
-          backgroundColor: widget.isHighlighted ? Colors.yellow : null,
-          decoration: widget.isUnderlined ? TextDecoration.underline : null,
-          decorationColor: widget.primaryColor,
-          decorationThickness: 2,
-        ),
-      ),
+      child: widget.isHighlighted
+          ? Container(
+              padding: const EdgeInsets.only(
+                left: 0,
+                right: 0,
+                top: 3.8,
+                bottom: 2,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.yellow,
+                borderRadius: BorderRadius.circular(0),
+              ),
+              child: Text(
+                widget.verseNumText,
+                key: widget.verseKey,
+                style: TextStyle(
+                  fontSize: widget.fontSize * 0.8,
+                  fontWeight: FontWeight.bold,
+                  color: widget.color,
+                  fontFamily: widget.fontFamily,
+                  letterSpacing: 0.5,
+                  height: 1.8,
+                  decoration: widget.isUnderlined ? TextDecoration.underline : null,
+                  decorationColor: widget.primaryColor,
+                  decorationThickness: 2,
+                ),
+              ),
+            )
+          : Text(
+              widget.verseNumText,
+              key: widget.verseKey,
+              style: TextStyle(
+                fontSize: widget.fontSize * 0.8,
+                fontWeight: FontWeight.bold,
+                color: widget.color,
+                fontFamily: widget.fontFamily,
+                letterSpacing: 0.5,
+                height: 1.8,
+                decoration: widget.isUnderlined ? TextDecoration.underline : null,
+                decorationColor: widget.primaryColor,
+                decorationThickness: 2,
+              ),
+            ),
     );
   }
 }
