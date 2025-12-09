@@ -43,7 +43,91 @@ class ChapterContentPage extends StatefulWidget {
 
 class _ChapterContentPageState extends State<ChapterContentPage> {
 
-
+  void _debugTextComparison(String editableText) {
+    print('═══════════════════════════════════════');
+    print('🔍 TEXT COMPARISON DEBUG');
+    print('═══════════════════════════════════════');
+    
+    // Build the text the same way we build spans
+    String reconstructedText = '';
+    for (int i = 0; i < verses.length; i++) {
+      VerseData verse = verses[i];
+      
+      if (verse.number == 0) {
+        String displayText = widget.removeDiacritics ? BibleData.removeTashkeel(verse.text) : verse.text;
+        reconstructedText += displayText;
+        reconstructedText += '\n\n';
+      } else {
+        // Add WidgetSpan marker
+        reconstructedText += '\uFFFC'; // This is the verse number widget
+        
+        String processedText = widget.removeDiacritics ? BibleData.removeTashkeel(verse.text) : verse.text;
+        reconstructedText += processedText;
+        
+        if (i < verses.length - 1) {
+          reconstructedText += ' ';
+        }
+      }
+    }
+    
+    print('📊 Editable text length: ${editableText.length}');
+    print('📊 Reconstructed text length: ${reconstructedText.length}');
+    print('📊 Difference: ${editableText.length - reconstructedText.length}');
+    
+    // Find first difference
+    int firstDiff = -1;
+    for (int i = 0; i < editableText.length && i < reconstructedText.length; i++) {
+      if (editableText[i] != reconstructedText[i]) {
+        firstDiff = i;
+        break;
+      }
+    }
+    
+    if (firstDiff >= 0) {
+      print('⚠️ First difference at position $firstDiff');
+      int start = (firstDiff - 20).clamp(0, editableText.length);
+      int end = (firstDiff + 20).clamp(0, editableText.length);
+      
+      print('   Editable text around diff:');
+      for (int i = start; i < end; i++) {
+        String char = editableText[i];
+        int code = char.codeUnitAt(0);
+        String marker = (i == firstDiff) ? ' <<<' : '';
+        print('     [$i] "${char}" (U+${code.toRadixString(16).padLeft(4, '0').toUpperCase()})$marker');
+      }
+      
+      print('   Reconstructed text around diff:');
+      for (int i = start; i < end && i < reconstructedText.length; i++) {
+        String char = reconstructedText[i];
+        int code = char.codeUnitAt(0);
+        String marker = (i == firstDiff) ? ' <<<' : '';
+        print('     [$i] "${char}" (U+${code.toRadixString(16).padLeft(4, '0').toUpperCase()})$marker');
+      }
+    } else {
+      print('✅ Texts match up to min length');
+    }
+    
+    // Sample at position 3900
+    print('\n📍 Sample at position 3900:');
+    if (3900 < editableText.length) {
+      for (int i = 3890; i < 3910 && i < editableText.length; i++) {
+        String char = editableText[i];
+        int code = char.codeUnitAt(0);
+        print('   E[$i] "${char}" (U+${code.toRadixString(16).padLeft(4, '0').toUpperCase()})');
+      }
+    }
+    
+    if (3900 < reconstructedText.length) {
+      print('   Reconstructed at 3900:');
+      for (int i = 3890; i < 3910 && i < reconstructedText.length; i++) {
+        String char = reconstructedText[i];
+        int code = char.codeUnitAt(0);
+        print('   R[$i] "${char}" (U+${code.toRadixString(16).padLeft(4, '0').toUpperCase()})');
+      }
+    }
+    
+    print('═══════════════════════════════════════\n');
+  }
 
   static const double _lineHeight = 1.8;  // Adjust this value as needed
   String chapterContent = '';
@@ -275,10 +359,12 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
           footnotes = fn;
           isLoading = false;
         });
-        
+
         print('✅ DONE: Chapter loaded successfully');
-        
+
         // ADD THIS LINE:
+        _debugVersePositions();
+
         _schedulePositionSwapping();
       }
     } catch (e, stackTrace) {
@@ -393,6 +479,8 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   }
 
   Map<int, TextRange> _computeVerseTextRanges(List<VerseData> verses, bool removeDiacritics) {
+    print('🔧 COMPUTE VERSE TEXT RANGES: Starting...');
+    
     Map<int, TextRange> ranges = {};
     int offset = 0;
     
@@ -402,6 +490,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       if (verse.number == 0) {
         // Chapter heading
         String displayText = removeDiacritics ? BibleData.removeTashkeel(verse.text) : verse.text;
+        print('   Chapter heading: offset=$offset, length=${displayText.length}');
         offset += displayText.length;
         offset += 2; // \n\n
         continue;
@@ -411,38 +500,241 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       int start = offset;  // Start at the WidgetSpan
       offset += 1;  // The WidgetSpan itself
       
-      // Add the actual verse content length
-      String processedText = removeDiacritics ? BibleData.removeTashkeel(verse.text) : verse.text;
-      int verseLength = processedText.length;
+      // Process the verse text to count footnotes
+      String verseText = verse.text;
+      String processedText = removeDiacritics ? BibleData.removeTashkeel(verseText) : verseText;
       
-      // Range now includes: [verse number] + [verse text]
-      ranges[verse.number] = TextRange(start: start, end: offset + verseLength);
+      // Count footnote markers in the original text
+      RegExp footnotePattern = RegExp(r'\[(\d+)\]');
+      List<Match> footnoteMatches = footnotePattern.allMatches(processedText).toList();
       
-      offset += verseLength;
+      // Calculate actual displayed length:
+      // - Each [N] in text becomes a WidgetSpan (1 char: U+FFFC)
+      // - So we subtract the bracket length [1] = 3 chars, and add 1 for the widget
+      int displayedLength = processedText.length;
+      
+      for (Match match in footnoteMatches) {
+        int bracketLength = match.group(0)!.length; // "[1]" = 3, "[12]" = 4, etc.
+        displayedLength = displayedLength - bracketLength + 1; // Replace with 1 widget char
+      }
+      
+      // Range now includes: [verse number widget] + [verse text with footnote widgets]
+      ranges[verse.number] = TextRange(start: start, end: offset + displayedLength);
+      
+      print('   Verse ${verse.number}: range $start to ${offset + displayedLength}');
+      print('     Text length: ${processedText.length}, Footnotes: ${footnoteMatches.length}, Displayed: $displayedLength');
+      
+      offset += displayedLength;
       
       if (i < verses.length - 1) {
         offset += 1; // ' ' between verses
       }
     }
     
+    print('🔧 COMPUTE VERSE TEXT RANGES: Complete, ${ranges.length} ranges');
     return ranges;
   }
 
   List<int> _getSpannedVerses(TextSelection selection) {
+    print('🔍 GET SPANNED VERSES:');
+    print('   Selection: ${selection.start} to ${selection.end}');
+    
     List<int> spannedVerses = [];
     
     for (final entry in verseTextRanges.entries) {
       final verseNum = entry.key;
       final range = entry.value;
       
+      print('   Checking verse $verseNum: range ${range.start} to ${range.end}');
+      
       // Check if selection overlaps with this verse's range
       if (selection.start < range.end && selection.end > range.start) {
+        print('   ✓ Verse $verseNum IS in selection');
         spannedVerses.add(verseNum);
+      } else {
+        print('   ✗ Verse $verseNum NOT in selection');
       }
     }
     
     spannedVerses.sort();
+    print('   Final spanned verses: $spannedVerses');
     return spannedVerses;
+  }
+
+  TextSelection _adjustSelectionForRTL(TextSelection selection, String fullText) {
+    print('🚨 ADJUSTMENT FUNCTION CALLED!!! 🚨');
+    print('🔧 SELECTION ADJUSTMENT START');
+    print('   Original: ${selection.start} to ${selection.end}');
+    
+    if (selection.start >= fullText.length || selection.end > fullText.length) {
+      print('🔧 SELECTION ADJUSTMENT: Invalid bounds');
+      return selection;
+    }
+    
+    // Get the selected text
+    String selectedText = fullText.substring(selection.start, selection.end);
+    print('   Selected text (first 100): "${selectedText.substring(0, min(100, selectedText.length))}"');
+    
+    // CRITICAL DEBUG: Check what's BEFORE start and AFTER end
+    if (selection.start > 0) {
+      String charBefore = fullText[selection.start - 1];
+      int codeBefore = charBefore.codeUnitAt(0);
+      print('   Char BEFORE start: "$charBefore" (code: $codeBefore, hex: ${codeBefore.toRadixString(16)})');
+    }
+    
+    if (selection.end < fullText.length) {
+      String charAfter = fullText[selection.end];
+      int codeAfter = charAfter.codeUnitAt(0);
+      print('   Char AFTER end: "$charAfter" (code: $codeAfter, hex: ${codeAfter.toRadixString(16)})');
+    }
+    
+    // Clean the selected text (remove verse number markers)
+    String cleanedSelection = selectedText.replaceAll('\uFFFC', '').trim();
+    print('   Cleaned selection length: ${cleanedSelection.length}');
+    
+    if (cleanedSelection.length < 10) {
+      print('🔧 SELECTION ADJUSTMENT: Selection too short');
+      return selection;
+    }
+    
+    // CRITICAL FIX: If selection starts with a space, DON'T expand backward
+    // Instead, move forward TO the first non-space character
+    int adjustedStart = selection.start;
+    
+    // First, skip any leading spaces/whitespace IN the selection
+    while (adjustedStart < selection.end && fullText[adjustedStart] == ' ') {
+      adjustedStart++;
+    }
+    print('   After skipping leading spaces: adjustedStart=$adjustedStart');
+    
+    // Now expand backward from this position to get the full word
+    int backwardSteps = 0;
+    while (adjustedStart > 0) {
+      String charBefore = fullText[adjustedStart - 1];
+      int codePoint = charBefore.codeUnitAt(0);
+      
+      print('   Backward step $backwardSteps: pos=${adjustedStart - 1}, char="$charBefore", code=$codePoint');
+      
+      // Stop at word boundaries
+      if (charBefore == ' ' || charBefore == '\n' || charBefore == '\uFFFC') {
+        print('   → Stop: word boundary (space/newline/widget)');
+        break;
+      }
+      
+      // Stop at punctuation
+      if (RegExp(r'[،؛:.!؟»«]').hasMatch(charBefore)) {
+        print('   → Stop: punctuation');
+        break;
+      }
+      
+      // Check if it's a diacritic (Arabic diacritical marks: U+064B to U+065F)
+      if (codePoint >= 0x064B && codePoint <= 0x065F) {
+        print('   → Continue: diacritic mark');
+        adjustedStart--;
+        backwardSteps++;
+        continue;
+      }
+      
+      // Check if it's an Arabic letter (U+0600 to U+06FF)
+      if (codePoint >= 0x0600 && codePoint <= 0x06FF) {
+        print('   → Continue: Arabic letter');
+        adjustedStart--;
+        backwardSteps++;
+        continue;
+      }
+      
+      // Check if it's a Latin letter or digit
+      if (RegExp(r'[a-zA-Z0-9]').hasMatch(charBefore)) {
+        print('   → Continue: Latin letter/digit');
+        adjustedStart--;
+        backwardSteps++;
+        continue;
+      }
+      
+      // Unknown character - stop
+      print('   → Stop: unknown character type');
+      break;
+    }
+    
+    // EXPAND FORWARD from end position
+    // First, skip any trailing spaces IN the selection
+    int adjustedEnd = selection.end;
+    
+    // Move backward TO the last non-space character
+    while (adjustedEnd > selection.start && fullText[adjustedEnd - 1] == ' ') {
+      adjustedEnd--;
+    }
+    print('   After removing trailing spaces: adjustedEnd=$adjustedEnd');
+    
+    // Now expand forward from this position to get the full word
+    int forwardSteps = 0;
+    while (adjustedEnd < fullText.length) {
+      String charAt = fullText[adjustedEnd];
+      int codePoint = charAt.codeUnitAt(0);
+      
+      print('   Forward step $forwardSteps: pos=$adjustedEnd, char="$charAt", code=$codePoint');
+      
+      // Stop at word boundaries
+      if (charAt == ' ' || charAt == '\n' || charAt == '\uFFFC') {
+        print('   → Stop: word boundary (space/newline/widget)');
+        break;
+      }
+      
+      // Stop at punctuation
+      if (RegExp(r'[،؛:.!؟»«]').hasMatch(charAt)) {
+        print('   → Stop: punctuation');
+        break;
+      }
+      
+      // Check if it's a diacritic (Arabic diacritical marks)
+      if (codePoint >= 0x064B && codePoint <= 0x065F) {
+        print('   → Continue: diacritic mark');
+        adjustedEnd++;
+        forwardSteps++;
+        continue;
+      }
+      
+      // Check if it's an Arabic letter
+      if (codePoint >= 0x0600 && codePoint <= 0x06FF) {
+        print('   → Continue: Arabic letter');
+        adjustedEnd++;
+        forwardSteps++;
+        continue;
+      }
+      
+      // Check if it's a Latin letter or digit
+      if (RegExp(r'[a-zA-Z0-9]').hasMatch(charAt)) {
+        print('   → Continue: Latin letter/digit');
+        adjustedEnd++;
+        forwardSteps++;
+        continue;
+      }
+      
+      // Unknown character - stop
+      print('   → Stop: unknown character type');
+      break;
+    }
+    
+    print('🔧 SELECTION ADJUSTMENT: Expanded to word boundaries');
+    print('   Adjusted: $adjustedStart to $adjustedEnd');
+    print('   Start moved by: ${selection.start - adjustedStart} chars backward ($backwardSteps steps)');
+    print('   End moved by: ${adjustedEnd - selection.end} chars forward ($forwardSteps steps)');
+    
+    // Verify the adjustment
+    if (adjustedStart < adjustedEnd && adjustedEnd <= fullText.length) {
+      String adjustedText = fullText.substring(adjustedStart, adjustedEnd);
+      String cleanedAdjusted = adjustedText.replaceAll('\uFFFC', '').trim();
+      
+      print('   Adjusted text (first 100): "${cleanedAdjusted.substring(0, min(100, cleanedAdjusted.length))}"');
+      if (cleanedAdjusted.length > 50) {
+        print('   Adjusted text (last 50): "${cleanedAdjusted.substring(cleanedAdjusted.length - 50)}"');
+      }
+      
+      return TextSelection(baseOffset: adjustedStart, extentOffset: adjustedEnd);
+    }
+    
+    print('🔧 SELECTION ADJUSTMENT: Failed, using original');
+    return selection;
   }
 
 
@@ -531,13 +823,11 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
             fontWeight: FontWeight.bold,
             color: themeProvider.primaryTextColor,
             fontSize: widget.fontSize * 1.1,
-            height: 1.8,  // Add line height here
+            height: 1.8,
           ),
         ));
         allSpans.add(const TextSpan(text: '\n\n'));
       } else {
-        // Create a unique key using both verse number and a counter to handle duplicates
-        // Create truly unique key for each widget instance
         final uniqueKeyIdentifier = '${verse.number}_$i';
         if (!_uniqueVerseKeys.containsKey(uniqueKeyIdentifier)) {
           _uniqueVerseKeys[uniqueKeyIdentifier] = GlobalKey();
@@ -545,10 +835,9 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         if (!_verseKeys.containsKey(verse.number)) {
           _verseKeys[verse.number] = GlobalKey();
         }
-        final verseKey = _verseKeys[verse.number]!;  // For scrolling
-        final uniqueWidgetKey = _uniqueVerseKeys[uniqueKeyIdentifier]!;  // For widget
+        final verseKey = _verseKeys[verse.number]!;
+        final uniqueWidgetKey = _uniqueVerseKeys[uniqueKeyIdentifier]!;
         
-        // Check if verse number should be highlighted/underlined
         List<TextRange> hlRanges = highlightedRanges[_chapterKey]?[verse.number] ?? [];
         List<TextRange> ulRanges = underlinedRanges[_chapterKey]?[verse.number] ?? [];
 
@@ -556,8 +845,6 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         bool verseNumHighlighted = hlRanges.any((r) => r.start == 0 || r.start < verseNumText.length);
         bool verseNumUnderlined = ulRanges.any((r) => r.start == 0 || r.start < verseNumText.length);
 
-        // Use unique key for the widget instance
-        final verseNumberKeyId = 'vn_${verse.number}_$i';
         final verseNumberKey = _verseNumberKeys.putIfAbsent(
           verse.number, 
           () => GlobalKey()
@@ -567,9 +854,9 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
           alignment: PlaceholderAlignment.baseline,
           baseline: TextBaseline.alphabetic,
           child: Directionality(
-            textDirection: TextDirection.ltr,  // Force LTR for verse numbers
+            textDirection: TextDirection.ltr,
             child: _VerseNumberWidget(
-              key: uniqueWidgetKey,  // Changed this line
+              key: uniqueWidgetKey,
               verseKey: verseKey,
               verseNumText: verseNumText,
               fontSize: widget.fontSize,
@@ -582,6 +869,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
           ),
         ));
                 
+        // CRITICAL CHANGE: Don't add RTL markers in the spans
         allSpans.addAll(_buildVerseSpansForWidget(verse.text, hlRanges, ulRanges, isArabic, verse.number));
         
         if (i < verses.length - 1) {
@@ -596,8 +884,8 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       textAlign: TextAlign.start,
       strutStyle: StrutStyle(
         fontSize: widget.fontSize,
-        height: _lineHeight,  // Use your constant
-        forceStrutHeight: true,  // This is critical - forces consistent line spacing
+        height: _lineHeight,
+        forceStrutHeight: true,
         fontFamily: isArabic ? widget.fontFamily : 'serif',
       ),
       contextMenuBuilder: (context, editableTextState) {
@@ -608,14 +896,37 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   
   Widget _buildVerseContextMenuWithDetection(BuildContext context, EditableTextState editableTextState, bool isArabic) {
     final TextEditingValue value = editableTextState.textEditingValue;
-    final TextSelection selection = value.selection;
+    final TextSelection editableSelection = value.selection;
+    
+    // DEBUG: Compare texts
+    // _debugTextComparison(value.text);
+    
+    print('🎯 CONTEXT MENU: Chapter ${widget.bookIndex}-${widget.chapterNumber}');
+    print('🎯 SELECTION from EditableText: ${editableSelection.start} to ${editableSelection.end}');
+    print('   verseTextRanges has ${verseTextRanges.length} entries');
+    print('   First 3 verse numbers: ${verseTextRanges.keys.take(3).toList()}');
+    
+    if (!editableSelection.isValid || editableSelection.isCollapsed) {
+      return const SizedBox.shrink();
+    }
+    
+    final String selectedText = value.text.substring(editableSelection.start, editableSelection.end);
+    print("edddd ${editableSelection.start}, ${editableSelection.end}");
+    print('FULL TEXT LENGTH: ${value.text.length}');
+    print('   Selected text: "$selectedText"');
+    print('   Selected text (first 50 chars): "${selectedText.substring(0, selectedText.length.clamp(0, 50))}"');
+    
+    // Convert EditableText selection to actual text selection (removing special chars)
+    final TextSelection selection = _convertEditableSelectionToActualSelection(editableSelection, value.text);
     
     if (!selection.isValid || selection.isCollapsed) {
       return const SizedBox.shrink();
     }
     
-    final String selectedText = value.text.substring(selection.start, selection.end);
-    
+    print(' hey valuetext ${value.text}');
+    print(' hey selectedtext ${selectedText}');
+
+  
     // Detect verse using precomputed ranges
     int? detectedVerseNumber;
     for (final entry in verseTextRanges.entries) {
@@ -633,6 +944,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         label: isArabic ? 'نسخ' : 'Copy',
         onPressed: () {
           String cleanedText = _cleanTextForCopy(selectedText);
+          print("hey cleaned text ${cleanedText}");
           Clipboard.setData(ClipboardData(text: cleanedText));
           editableTextState.hideToolbar();
         },
@@ -654,7 +966,8 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         ContextMenuButtonItem(
           label: isArabic ? 'تمييز' : 'Highlight',
           onPressed: () {
-            _handleVerseHighlight(value.text, selection, detectedVerseNumber!, isArabic);
+            // Use the converted selection, not the editable selection
+            _handleVerseHighlight(value.text, editableSelection, detectedVerseNumber!, isArabic);
             editableTextState.hideToolbar();
           },
         ),
@@ -664,6 +977,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         ContextMenuButtonItem(
           label: isArabic ? 'تسطير' : 'Underline',
           onPressed: () {
+            // Use the converted selection, not the editable selection
             _handleVerseUnderline(value.text, selection, detectedVerseNumber!, isArabic);
             editableTextState.hideToolbar();
           },
@@ -677,40 +991,50 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     );
   }
 
-  void _handleVerseHighlight(String fullText, TextSelection selection, int firstDetectedVerse, bool isArabic) {
-    if (selection.isCollapsed) {
-      return;
+void _handleVerseHighlight(String fullText, TextSelection selection, int firstDetectedVerse, bool isArabic) {
+  print('🎯 HIGHLIGHT: sel=${selection.start}-${selection.end}');
+  
+  if (selection.isCollapsed) return;
+  
+  // Get all verses that the selection spans
+  List<int> spannedVerses = _getSpannedVerses(selection);
+  if (spannedVerses.isEmpty) return;
+  
+  setState(() {
+    if (!highlightedRanges.containsKey(_chapterKey)) {
+      highlightedRanges[_chapterKey] = {};
     }
     
-    // Get all verses that the selection spans
-    List<int> spannedVerses = _getSpannedVerses(selection);
-    
-    if (spannedVerses.isEmpty) {
-      return;
-    }
-    
-    
-    setState(() {
-      if (!highlightedRanges.containsKey(_chapterKey)) {
-        highlightedRanges[_chapterKey] = {};
-      }
+    for (int verseNum in spannedVerses) {
+      if (!verseTextRanges.containsKey(verseNum)) continue;
       
-      for (int verseNum in spannedVerses) {
-        if (!verseTextRanges.containsKey(verseNum)) continue;
-        
-        TextRange verseRange = verseTextRanges[verseNum]!;
-        
-        // Calculate the portion of selection that falls within this verse
-        int highlightStart = selection.start < verseRange.start 
-            ? 0  // Selection started before this verse
-            : selection.start - verseRange.start;  // Selection started within this verse
-        
-        int highlightEnd = selection.end > verseRange.end
-            ? verseRange.end - verseRange.start  // Selection extends beyond this verse
-            : selection.end - verseRange.start;  // Selection ends within this verse
-        
-        
-        TextRange highlightRange = TextRange(start: highlightStart, end: highlightEnd);
+      TextRange verseRange = verseTextRanges[verseNum]!;
+      
+      // CRITICAL FIX: verseRange includes the WidgetSpan for verse number
+      // We need to subtract 1 from the start to account for it when calculating highlight position
+      // The WidgetSpan is 1 character (U+FFFC) at verseRange.start
+      
+      // Calculate global selection boundaries within this verse
+      int globalHighlightStart = max(selection.start, verseRange.start);
+      int globalHighlightEnd = min(selection.end, verseRange.end);
+      
+      // Convert to LOCAL position within verse text (excluding the WidgetSpan)
+      // verseRange.start points to the WidgetSpan, so text starts at verseRange.start + 1
+      int localHighlightStart = globalHighlightStart - (verseRange.start + 1);
+      int localHighlightEnd = globalHighlightEnd - (verseRange.start + 1);
+      
+      // Get the verse text
+      final verse = verses.firstWhere((v) => v.number == verseNum);
+      String verseText = widget.removeDiacritics ? BibleData.removeTashkeel(verse.text) : verse.text;
+      
+      // Clamp to verse text length
+      localHighlightStart = localHighlightStart.clamp(0, verseText.length);
+      localHighlightEnd = localHighlightEnd.clamp(localHighlightStart, verseText.length);
+      
+      print('   V$verseNum: local=$localHighlightStart-$localHighlightEnd, text="${verseText.substring(localHighlightStart, min(localHighlightEnd, localHighlightStart + 30))}..."');
+      
+      if (localHighlightStart < localHighlightEnd) {
+        TextRange highlightRange = TextRange(start: localHighlightStart, end: localHighlightEnd);
         
         if (!highlightedRanges[_chapterKey]!.containsKey(verseNum)) {
           highlightedRanges[_chapterKey]![verseNum] = [];
@@ -721,10 +1045,11 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
           highlightRange
         );
       }
-    });
-    
-    _saveHighlightedRanges();
-  }
+    }
+  });
+  
+  _saveHighlightedRanges();
+}
 
   void _handleVerseUnderline(String fullText, TextSelection selection, int firstDetectedVerse, bool isArabic) {
     
@@ -776,6 +1101,52 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     _saveUnderlinedRanges();
   }
 
+
+  void _debugVersePositions() {
+    print('🔍 DEBUG VERSE POSITIONS:');
+    print('📊 Total verses: ${verses.length}');
+    
+    int currentPos = 0;
+    for (int i = 0; i < verses.length; i++) {
+      VerseData verse = verses[i];
+      
+      if (verse.number == 0) {
+        String displayText = widget.removeDiacritics ? BibleData.removeTashkeel(verse.text) : verse.text;
+        print('📍 Chapter heading at $currentPos: length=${displayText.length}');
+        currentPos += displayText.length + 2; // +2 for \n\n
+        continue;
+      }
+      
+      // Account for verse number WidgetSpan (1 char: U+FFFC)
+      int verseStartPos = currentPos;
+      currentPos += 1; // WidgetSpan
+      
+      String processedText = widget.removeDiacritics ? BibleData.removeTashkeel(verse.text) : verse.text;
+      int verseTextLength = processedText.length;
+      
+      int verseEndPos = currentPos + verseTextLength;
+      
+      // Compare with stored range
+      TextRange? storedRange = verseTextRanges[verse.number];
+      
+      print('📍 Verse ${verse.number}:');
+      print('   Calculated: $verseStartPos to $verseEndPos (len=$verseTextLength)');
+      if (storedRange != null) {
+        print('   Stored:     ${storedRange.start} to ${storedRange.end} (len=${storedRange.end - storedRange.start})');
+        if (verseStartPos != storedRange.start || verseEndPos != storedRange.end) {
+          print('   ⚠️ MISMATCH!');
+        }
+      }
+      print('   First 50 chars: "${processedText.substring(0, min(50, processedText.length))}"');
+      
+      currentPos = verseEndPos;
+      
+      if (i < verses.length - 1) {
+        currentPos += 1; // space between verses
+      }
+    }
+  }
+
   String _cleanTextForCopy(String selectedText) {
     String cleaned = selectedText;
     
@@ -799,6 +1170,60 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     cleaned = cleaned.replaceAll(RegExp(r'\s*\.\s*'), '. ').trim();
     
     return cleaned;
+  }
+
+/// Converts EditableText selection positions to actual text positions
+/// by removing special characters that EditableText includes but our ranges don't
+  TextSelection _convertEditableSelectionToActualSelection(TextSelection editableSelection, String fullEditableText) {
+    print('🔄 CONVERTING SELECTION:');
+    print('   Editable: ${editableSelection.start} to ${editableSelection.end}');
+    
+    if (editableSelection.start >= fullEditableText.length || editableSelection.end > fullEditableText.length) {
+      print('   ⚠️ Invalid bounds, returning original');
+      return editableSelection;
+    }
+    
+    // Count special characters before start position
+    int specialCharsBeforeStart = 0;
+    for (int i = 0; i < editableSelection.start && i < fullEditableText.length; i++) {
+      String char = fullEditableText[i];
+      int code = char.codeUnitAt(0);
+      
+      // Count: RTL marks, LRI/PDI marks, Object replacement (WidgetSpan)
+      if (code == 0x200F ||  // RTL mark
+          code == 0x2066 ||  // LRI mark  
+          code == 0x2069 ||  // PDI mark
+          code == 0xFFFC) {  // Object replacement character (WidgetSpan)
+        specialCharsBeforeStart++;
+      }
+    }
+    
+    // Count special characters before end position
+    int specialCharsBeforeEnd = 0;
+    for (int i = 0; i < editableSelection.end && i < fullEditableText.length; i++) {
+      String char = fullEditableText[i];
+      int code = char.codeUnitAt(0);
+      
+      if (code == 0x200F ||  // RTL mark
+          code == 0x2066 ||  // LRI mark
+          code == 0x2069 ||  // PDI mark
+          code == 0xFFFC) {  // Object replacement character
+        specialCharsBeforeEnd++;
+      }
+    }
+    
+    // Adjust positions by subtracting special characters
+    int actualStart = editableSelection.start + specialCharsBeforeStart;
+    int actualEnd = editableSelection.end + specialCharsBeforeEnd;
+    
+    print('   Special chars before start: $specialCharsBeforeStart');
+    print('   Special chars before end: $specialCharsBeforeEnd');
+    print('   Actual: $actualStart to $actualEnd');
+    
+    return TextSelection(
+      baseOffset: actualStart.clamp(0, actualStart),
+      extentOffset: actualEnd.clamp(actualStart, actualEnd),
+    );
   }
 
   int _findBestMatch(String original, String target) {
@@ -849,6 +1274,8 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
 
     String processedText = widget.removeDiacritics ? BibleData.removeTashkeel(verseText) : verseText;
     
+    // print('🔧 BUILD VERSE SPANS: Verse $verseNumber, text length=${processedText.length}');
+    
     List<InlineSpan> spans = [];
     
     RegExp footnotePattern = RegExp(r'\[(\d+)\]');
@@ -865,15 +1292,13 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       // Add text BEFORE footnote with styling
       if (start > lastEnd) {
         String textBefore = processedText.substring(lastEnd, start);
-        String displayText = isArabic ? '\u200F$textBefore' : textBefore;
-        spans.addAll(_buildStyledSpans(displayText, hlRanges, ulRanges, isArabic, lastEnd));
+        // DON'T add RTL marker here
+        spans.addAll(_buildStyledSpans(textBefore, hlRanges, ulRanges, isArabic, lastEnd));
       }
       
-      // Determine if footnote number should be highlighted/underlined
       bool footnoteHighlighted = hlRanges.any((r) => r.start <= start && r.end >= end);
       bool footnoteUnderlined = ulRanges.any((r) => r.start <= start && r.end >= end);
       
-      // Create unique key for each footnote widget instance
       final footnoteKeyId = 'fn_${footnoteNum}_${verseNumber}_$matchIndex';
       if (!_footnoteNumberKeys.containsKey(footnoteKeyId)) {
         _footnoteNumberKeys[footnoteKeyId] = GlobalKey();
@@ -901,8 +1326,8 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     // Add remaining text after last footnote
     if (lastEnd < processedText.length) {
       String remainingText = processedText.substring(lastEnd);
-      String displayText = isArabic ? '\u200F$remainingText' : remainingText;
-      spans.addAll(_buildStyledSpans(displayText, hlRanges, ulRanges, isArabic, lastEnd));
+      // DON'T add RTL marker here
+      spans.addAll(_buildStyledSpans(remainingText, hlRanges, ulRanges, isArabic, lastEnd));
     }
     
     return spans;
@@ -913,9 +1338,8 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     
     if (text.isEmpty) return [];
     
-    // Remove RTL marker for calculation
-    String cleanText = text.replaceAll('\u200F', '');
-    int rtlOffset = text.startsWith('\u200F') ? 1 : 0;
+    // CRITICAL: Don't add RTL markers here - they mess up position calculations
+    String cleanText = text;
     
     Set<int> points = {0, cleanText.length};
     for (var r in [...hlRanges, ...ulRanges]) {
@@ -937,8 +1361,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       bool isHighlighted = hlRanges.any((r) => r.start <= globalStart && r.end >= globalEnd);
       bool isUnderlined = ulRanges.any((r) => r.start <= globalStart && r.end >= globalEnd);
 
-      // Get text with RTL marker if applicable
-      String spanText = text.substring(start + rtlOffset, end + rtlOffset);
+      String spanText = cleanText.substring(start, end);
       
       spans.add(TextSpan(
         text: spanText,
