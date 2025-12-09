@@ -566,9 +566,10 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         bool verseNumHighlighted = hlRanges.any((r) => r.start == 0 || r.start < verseNumText.length);
         bool verseNumUnderlined = ulRanges.any((r) => r.start == 0 || r.start < verseNumText.length);
 
+        // Use the uniqueWidgetKey for both the widget AND tracking
         final verseNumberKey = _verseNumberKeys.putIfAbsent(
           verse.number, 
-          () => GlobalKey()
+          () => uniqueWidgetKey  // ← Use the same unique key
         );
 
         allSpans.add(WidgetSpan(
@@ -577,7 +578,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
           child: Directionality(
             textDirection: TextDirection.ltr,
             child: _VerseNumberWidget(
-              key: uniqueWidgetKey,
+              key: verseNumberKey,  // ← Use the tracking key
               verseKey: verseKey,
               verseNumText: verseNumText,
               fontSize: widget.fontSize,
@@ -589,7 +590,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
             ),
           ),
         ));
-                
+                        
         // CRITICAL CHANGE: Don't add RTL markers in the spans
         allSpans.addAll(_buildVerseSpansForWidget(verse.text, hlRanges, ulRanges, isArabic, verse.number));
         
@@ -1608,7 +1609,7 @@ class _FootnoteNumberWidgetState extends State<_FootnoteNumberWidget> {
         child: widget.isHighlighted
             ? Container(
                 padding: const EdgeInsets.only(
-                  left: 0.0,
+                  left: 3.0,
                   right: 0.0,
                   top: 5,
                   bottom: 3,
@@ -1713,3 +1714,4 @@ class _VerseNumberWidgetState extends State<_VerseNumberWidget> {
 }
 
 
+//helb
