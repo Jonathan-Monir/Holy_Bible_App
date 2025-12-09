@@ -1131,7 +1131,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
             children: [
               Expanded(
                 child: Text(
-                  '${widget.bookName} ${widget.chapterNumber}',
+                  '${widget.arabicName} ${widget.chapterNumber}',  // ← Use arabicName instead of bookName
                   style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -1259,10 +1259,11 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
                                             style: _getFontStyle(isArabic).copyWith(
                                               fontSize: widget.fontSize * 0.85,
                                               color: themeProvider.secondaryTextColor,
+                                              height: 1.0,  // ← Add this for better line spacing within footnote
                                             ),
                                             strutStyle: StrutStyle(
                                               fontSize: widget.fontSize * 0.85,
-                                              height: 1.0,
+                                              height: 1.8,  // ← Increase from 1.0 to 1.5 for more space between lines
                                               forceStrutHeight: true,
                                               fontFamily: isArabic ? widget.fontFamily : 'serif',
                                             ),

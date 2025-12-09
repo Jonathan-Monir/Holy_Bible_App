@@ -178,7 +178,7 @@ class ThemeProvider extends ChangeNotifier {
 
   // New properties for verse and footnote colors
   Color _verseNumberColor = Colors.blue.shade700;
-  Color _footnoteNumberColor = Colors.lightBlue.shade600;
+  Color _footnoteNumberColor = Colors.red.shade700;
 
   Color get verseNumberColor => _verseNumberColor;
   Color get footnoteNumberColor => _footnoteNumberColor;
