@@ -24,6 +24,7 @@ dev_dependencies:
     sdk: flutter
   flutter_launcher_icons: ^0.13.1  # Latest version as of 2025
   flutter_lints: ^2.0.0
+  flutter_colorpicker: ^1.0.3
 
 flutter:
   fonts:

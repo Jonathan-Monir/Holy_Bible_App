@@ -1,5 +1,5 @@
 // lib/chapter_content_page.dart
-
+import 'color_picker_dialog.dart';
 import 'package:flutter/scheduler.dart';  // ← ADD THIS LINE
 import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
@@ -25,6 +25,7 @@ class ChapterContentPage extends StatefulWidget {
   final String fontFamily;
   final bool removeDiacritics;
 
+
   const ChapterContentPage({
     super.key,
     required this.bookName,
@@ -49,6 +50,10 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   List<VerseData> verses = [];
   Map<String, Map<int, List<TextRange>>> highlightedRanges = <String, Map<int, List<TextRange>>>{};
   Map<String, Map<int, List<TextRange>>> underlinedRanges = <String, Map<int, List<TextRange>>>{};
+
+
+  Color _highlightColor = Colors.yellow;
+  Color _underlineColor = Colors.blue;
 
   String footnotes = '';
   final GlobalKey _footnotesKey = GlobalKey();
@@ -126,6 +131,18 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     try {
       final prefs = await SharedPreferences.getInstance();
       
+      // Load highlight color
+      final highlightColorValue = prefs.getInt('highlight_color');
+      if (highlightColorValue != null) {
+        _highlightColor = Color(highlightColorValue);
+      }
+      
+      // Load underline color
+      final underlineColorValue = prefs.getInt('underline_color');
+      if (underlineColorValue != null) {
+        _underlineColor = Color(underlineColorValue);
+      }
+      
       final highlightedData = prefs.getString('highlighted_ranges') ?? '{}';
       if (highlightedData != '{}') {
         final highlightedMap = json.decode(highlightedData) as Map<String, dynamic>;
@@ -171,6 +188,66 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       }
       await prefs.setString('highlighted_ranges', json.encode(data));
     } catch (e) {
+    }
+  }
+
+  Future<void> _saveHighlightColor(Color color) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('highlight_color', color.value);
+      setState(() {
+        _highlightColor = color;
+      });
+    } catch (e) {
+      print('Error saving highlight color: $e');
+    }
+  }
+
+  Future<void> _saveUnderlineColor(Color color) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('underline_color', color.value);
+      setState(() {
+        _underlineColor = color;
+      });
+    } catch (e) {
+      print('Error saving underline color: $e');
+    }
+  }
+
+  Future<void> _showHighlightColorPicker() async {
+    final Color? newColor = await showModalBottomSheet<Color>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return ColorPickerBottomSheet(
+          title: 'Choose Highlight Color',
+          currentColor: _highlightColor,
+        );
+      },
+    );
+    
+    if (newColor != null) {
+      await _saveHighlightColor(newColor);
+    }
+  }
+
+  Future<void> _showUnderlineColorPicker() async {
+    final Color? newColor = await showModalBottomSheet<Color>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return ColorPickerBottomSheet(
+          title: 'Choose Underline Color',
+          currentColor: _underlineColor,
+        );
+      },
+    );
+    
+    if (newColor != null) {
+      await _saveUnderlineColor(newColor);
     }
   }
 
@@ -237,7 +314,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   }
 
   Future<void> _loadChapterContent() async {
-    print('🔵 START: Loading chapter ${widget.bookIndex} - ${widget.chapterNumber}');
+    // print('🔵 START: Loading chapter ${widget.bookIndex} - ${widget.chapterNumber}');
     
     try {
       final content = await BibleData.getChapterContent(widget.bookIndex, widget.chapterNumber);
@@ -256,9 +333,9 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
           print('   Verse ${parsedVerses[i].number}: ${parsedVerses[i].text.substring(0, min(50, parsedVerses[i].text.length))}...');
         }
         
-        print('🔄 Computing verse text ranges...');
+        // print('🔄 Computing verse text ranges...');
         final ranges = _computeVerseTextRanges(parsedVerses, widget.removeDiacritics);
-        print('✅ Computed ${ranges.length} ranges');
+        // print('✅ Computed ${ranges.length} ranges');
 
         setState(() {
           chapterContent = content;
@@ -268,7 +345,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
           isLoading = false;
         });
 
-        print('✅ DONE: Chapter loaded successfully');
+        // print('✅ DONE: Chapter loaded successfully');
         _debugVersePositions();
 
         // Schedule swapping after build completes
@@ -293,15 +370,15 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   }
 
   List<VerseData> _parseVersesToList(String content) {
-    print('🔍 PARSE: Starting to parse content, length: ${content.length}');
+    // print('🔍 PARSE: Starting to parse content, length: ${content.length}');
     
     List<VerseData> verseList = [];
     List<String> lines = content.split('\n');
     
-    print('🔍 PARSE: Split into ${lines.length} lines');
+    // print('🔍 PARSE: Split into ${lines.length} lines');
     
     for (int i = 0; i < min(3, lines.length); i++) {
-      print('   Line $i: ${lines[i].substring(0, min(100, lines[i].length))}');
+      // print('   Line $i: ${lines[i].substring(0, min(100, lines[i].length))}');
     }
     
     for (String line in lines) {
@@ -335,19 +412,19 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
           ));
           
           if (verseList.length <= 3) {
-            print('   ✓ Added verse $verseNumber: ${verseText.substring(0, min(50, verseText.length))}...');
+            // print('   ✓ Added verse $verseNumber: ${verseText.substring(0, min(50, verseText.length))}...');
           }
         }
       } else {
         // Line doesn't match verse pattern - might be chapter heading
         if (line.trim().isNotEmpty) {
-          print('   ⚠ Non-verse line: ${line.substring(0, min(100, line.length))}');
+          // print('   ⚠ Non-verse line: ${line.substring(0, min(100, line.length))}');
           verseList.add(VerseData(number: 0, text: line.trim()));
         }
       }
     }
     
-    print('🔍 PARSE: Complete, found ${verseList.length} verses');
+    // print('🔍 PARSE: Complete, found ${verseList.length} verses');
     return verseList;
   }
 
@@ -376,7 +453,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   }
 
   Map<int, TextRange> _computeVerseTextRanges(List<VerseData> verses, bool removeDiacritics) {
-    print('🔧 COMPUTE VERSE TEXT RANGES: Starting...');
+    // print('🔧 COMPUTE VERSE TEXT RANGES: Starting...');
     
     Map<int, TextRange> ranges = {};
     int offset = 0;
@@ -387,7 +464,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       if (verse.number == 0) {
         // Chapter heading
         String displayText = removeDiacritics ? BibleData.removeTashkeel(verse.text) : verse.text;
-        print('   Chapter heading: offset=$offset, length=${displayText.length}');
+        // print('   Chapter heading: offset=$offset, length=${displayText.length}');
         offset += displayText.length;
         offset += 2; // \n\n
         continue;
@@ -420,7 +497,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       // So we keep the offset in the "editable" coordinate system
       ranges[verse.number] = TextRange(start: start, end: offset + displayedLength);
       
-      print('   Verse ${verse.number}: range $start to ${offset + displayedLength} (widgets: 1 verse + ${footnoteMatches.length} footnotes)');
+      // print('   Verse ${verse.number}: range $start to ${offset + displayedLength} (widgets: 1 verse + ${footnoteMatches.length} footnotes)');
       
       offset += displayedLength;
       
@@ -429,13 +506,13 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       }
     }
     
-    print('🔧 COMPUTE VERSE TEXT RANGES: Complete, ${ranges.length} ranges');
+    // print('🔧 COMPUTE VERSE TEXT RANGES: Complete, ${ranges.length} ranges');
     return ranges;
   }
 
   List<int> _getSpannedVerses(TextSelection selection) {
-    print('🔍 GET SPANNED VERSES:');
-    print('   Selection: ${selection.start} to ${selection.end}');
+    // print('🔍 GET SPANNED VERSES:');
+    // print('   Selection: ${selection.start} to ${selection.end}');
     
     List<int> spannedVerses = [];
     
@@ -443,19 +520,19 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       final verseNum = entry.key;
       final range = entry.value;
       
-      print('   Checking verse $verseNum: range ${range.start} to ${range.end}');
+      // print('   Checking verse $verseNum: range ${range.start} to ${range.end}');
       
       // Check if selection overlaps with this verse's range
       if (selection.start < range.end && selection.end > range.start) {
-        print('   ✓ Verse $verseNum IS in selection');
+        // print('   ✓ Verse $verseNum IS in selection');
         spannedVerses.add(verseNum);
       } else {
-        print('   ✗ Verse $verseNum NOT in selection');
+        // print('   ✗ Verse $verseNum NOT in selection');
       }
     }
     
     spannedVerses.sort();
-    print('   Final spanned verses: $spannedVerses');
+    // print('   Final spanned verses: $spannedVerses');
     return spannedVerses;
   }
 
@@ -578,7 +655,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
           child: Directionality(
             textDirection: TextDirection.ltr,
             child: _VerseNumberWidget(
-              key: verseNumberKey,  // ← Use the tracking key
+              key: verseNumberKey,
               verseKey: verseKey,
               verseNumText: verseNumText,
               fontSize: widget.fontSize,
@@ -587,6 +664,8 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
               isHighlighted: verseNumHighlighted,
               isUnderlined: verseNumUnderlined,
               primaryColor: Theme.of(context).primaryColor,
+              highlightColor: _highlightColor,  // ADD THIS
+              underlineColor: _underlineColor,  // ADD THIS
             ),
           ),
         ));
@@ -623,20 +702,20 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     // DEBUG: Compare texts
     // _debugTextComparison(value.text);
     
-    print('🎯 CONTEXT MENU: Chapter ${widget.bookIndex}-${widget.chapterNumber}');
-    print('🎯 SELECTION from EditableText: ${editableSelection.start} to ${editableSelection.end}');
-    print('   verseTextRanges has ${verseTextRanges.length} entries');
-    print('   First 3 verse numbers: ${verseTextRanges.keys.take(3).toList()}');
+    // print('🎯 CONTEXT MENU: Chapter ${widget.bookIndex}-${widget.chapterNumber}');
+    // print('🎯 SELECTION from EditableText: ${editableSelection.start} to ${editableSelection.end}');
+    // print('   verseTextRanges has ${verseTextRanges.length} entries');
+    // print('   First 3 verse numbers: ${verseTextRanges.keys.take(3).toList()}');
     
     if (!editableSelection.isValid || editableSelection.isCollapsed) {
       return const SizedBox.shrink();
     }
     
     final String selectedText = value.text.substring(editableSelection.start, editableSelection.end);
-    print("edddd ${editableSelection.start}, ${editableSelection.end}");
-    print('FULL TEXT LENGTH: ${value.text.length}');
-    print('   Selected text: "$selectedText"');
-    print('   Selected text (first 50 chars): "${selectedText.substring(0, selectedText.length.clamp(0, 50))}"');
+    // print("edddd ${editableSelection.start}, ${editableSelection.end}");
+    // print('FULL TEXT LENGTH: ${value.text.length}');
+    // print('   Selected text: "$selectedText"');
+    // print('   Selected text (first 50 chars): "${selectedText.substring(0, selectedText.length.clamp(0, 50))}"');
     
     // Detect verse using precomputed ranges
     int? detectedVerseNumber;
@@ -655,7 +734,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         label: isArabic ? 'نسخ' : 'Copy',
         onPressed: () {
           String cleanedText = _cleanTextForCopy(selectedText);
-          print("hey cleaned text ${cleanedText}");
+          // print("hey cleaned text ${cleanedText}");
           Clipboard.setData(ClipboardData(text: cleanedText));
           editableTextState.hideToolbar();
         },
@@ -673,24 +752,56 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     );
     
     if (detectedVerseNumber != null) {
+      // Highlight button
       buttonItems.add(
         ContextMenuButtonItem(
           label: isArabic ? 'تمييز' : 'Highlight',
           onPressed: () {
-            // Use the converted selection, not the editable selection
             _handleVerseHighlight(value.text, editableSelection, detectedVerseNumber!, isArabic);
             editableTextState.hideToolbar();
           },
         ),
       );
       
+      // Highlight color button (compact icon)
+      buttonItems.add(
+        ContextMenuButtonItem(
+          label: '🎨',  // Color palette emoji
+          onPressed: () {
+            // First apply highlight if not already highlighted
+            _handleVerseHighlight(value.text, editableSelection, detectedVerseNumber!, isArabic);
+            editableTextState.hideToolbar();
+            // Then show color picker
+            Future.delayed(const Duration(milliseconds: 100), () {
+              _showHighlightColorPicker();
+            });
+          },
+        ),
+      );
+      
+      // Underline button
       buttonItems.add(
         ContextMenuButtonItem(
           label: isArabic ? 'تسطير' : 'Underline',
           onPressed: () {
-            // CHANGE: Use editableSelection instead of selection
             _handleVerseUnderline(value.text, editableSelection, detectedVerseNumber!, isArabic);
             editableTextState.hideToolbar();
+          },
+        ),
+      );
+
+      // Underline color button (compact icon)
+      buttonItems.add(
+        ContextMenuButtonItem(
+          label: '🎨',  // Color palette emoji
+          onPressed: () {
+            // First apply underline if not already underlined
+            _handleVerseUnderline(value.text, editableSelection, detectedVerseNumber!, isArabic);
+            editableTextState.hideToolbar();
+            // Then show color picker
+            Future.delayed(const Duration(milliseconds: 100), () {
+              _showUnderlineColorPicker();
+            });
           },
         ),
       );
@@ -703,7 +814,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   }
 
   void _handleVerseHighlight(String fullText, TextSelection selection, int firstDetectedVerse, bool isArabic) {
-    print('🎯 HIGHLIGHT: sel=${selection.start}-${selection.end}');
+    // print('🎯 HIGHLIGHT: sel=${selection.start}-${selection.end}');
     
     if (selection.isCollapsed) return;
     
@@ -750,7 +861,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         int originalStart = _displayPosToOriginalPos(localHighlightStart, verseText);
         int originalEnd = _displayPosToOriginalPos(localHighlightEnd, verseText);
         
-        print('   V$verseNum: display=$localHighlightStart-$localHighlightEnd, original=$originalStart-$originalEnd, text="${verseText.substring(originalStart, min(originalEnd, originalStart + 30))}..."');
+        // print('   V$verseNum: display=$localHighlightStart-$localHighlightEnd, original=$originalStart-$originalEnd, text="${verseText.substring(originalStart, min(originalEnd, originalStart + 30))}..."');
         
         if (originalStart < originalEnd) {
           TextRange highlightRange = TextRange(start: originalStart, end: originalEnd);
@@ -860,8 +971,8 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   }
 
   void _debugVersePositions() {
-    print('🔍 DEBUG VERSE POSITIONS:');
-    print('📊 Total verses: ${verses.length}');
+    // print('🔍 DEBUG VERSE POSITIONS:');
+    // print('📊 Total verses: ${verses.length}');
     
     int currentPos = 0;
     for (int i = 0; i < verses.length; i++) {
@@ -869,7 +980,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       
       if (verse.number == 0) {
         String displayText = widget.removeDiacritics ? BibleData.removeTashkeel(verse.text) : verse.text;
-        print('📍 Chapter heading at $currentPos: length=${displayText.length}');
+        // print('📍 Chapter heading at $currentPos: length=${displayText.length}');
         currentPos += displayText.length + 2; // +2 for \n\n
         continue;
       }
@@ -886,15 +997,15 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       // Compare with stored range
       TextRange? storedRange = verseTextRanges[verse.number];
       
-      print('📍 Verse ${verse.number}:');
-      print('   Calculated: $verseStartPos to $verseEndPos (len=$verseTextLength)');
+      // print('📍 Verse ${verse.number}:');
+      // print('   Calculated: $verseStartPos to $verseEndPos (len=$verseTextLength)');
       if (storedRange != null) {
-        print('   Stored:     ${storedRange.start} to ${storedRange.end} (len=${storedRange.end - storedRange.start})');
+        // print('   Stored:     ${storedRange.start} to ${storedRange.end} (len=${storedRange.end - storedRange.start})');
         if (verseStartPos != storedRange.start || verseEndPos != storedRange.end) {
-          print('   ⚠️ MISMATCH!');
+          // print('   ⚠️ MISMATCH!');
         }
       }
-      print('   First 50 chars: "${processedText.substring(0, min(50, processedText.length))}"');
+      // print('   First 50 chars: "${processedText.substring(0, min(50, processedText.length))}"');
       
       currentPos = verseEndPos;
       
@@ -1037,6 +1148,8 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
           isUnderlined: footnoteUnderlined,
           primaryColor: Theme.of(context).primaryColor,
           onTap: () => _scrollToFootnote(footnoteNum),
+          highlightColor: _highlightColor,  // ADD THIS
+          underlineColor: _underlineColor,  // ADD THIS
         ),
       ));
             
@@ -1088,15 +1201,28 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         style: _getFontStyle(isArabic).copyWith(
           fontWeight: FontWeight.normal,
           height: 1.8,
-          color: themeProvider.primaryTextColor,
-          backgroundColor: isHighlighted ? Colors.yellow : null,
+          color: isHighlighted 
+              ? _getContrastingTextColor(_highlightColor)  // Auto black/white based on highlight
+              : themeProvider.primaryTextColor,
+          backgroundColor: isHighlighted ? _highlightColor : null,
           decoration: isUnderlined ? TextDecoration.underline : null,
-          decorationColor: Theme.of(context).primaryColor,
+          decorationColor: isUnderlined ? _underlineColor : Theme.of(context).primaryColor,
           decorationThickness: 2,
         ),
       ));
     }
     return spans;
+  }
+  Color _getContrastingTextColor(Color backgroundColor) {
+    // Calculate relative luminance using the standard formula
+    // https://www.w3.org/TR/WCAG20/#relativeluminancedef
+    double luminance = (0.299 * backgroundColor.red + 
+                        0.587 * backgroundColor.green + 
+                        0.114 * backgroundColor.blue) / 255;
+    
+    // If luminance is greater than 0.5, the color is light, so use black text
+    // Otherwise, use white text
+    return luminance > 0.5 ? Colors.black : Colors.white;
   }
 
   @override
@@ -1547,6 +1673,8 @@ class _VerseNumberWidget extends StatefulWidget {
   final bool isHighlighted;
   final bool isUnderlined;
   final Color primaryColor;
+  final Color highlightColor;
+  final Color underlineColor;
   
   const _VerseNumberWidget({
     required Key key,
@@ -1558,6 +1686,8 @@ class _VerseNumberWidget extends StatefulWidget {
     required this.isHighlighted,
     required this.isUnderlined,
     required this.primaryColor,
+    required this.highlightColor,  // ADD THIS
+    required this.underlineColor,  // ADD THIS
   }) : super(key: key);
   
   @override
@@ -1572,6 +1702,8 @@ class _FootnoteNumberWidget extends StatefulWidget {
   final bool isUnderlined;
   final Color primaryColor;
   final VoidCallback onTap;
+  final Color highlightColor;
+  final Color underlineColor;
   
   const _FootnoteNumberWidget({
     required Key key,
@@ -1582,6 +1714,8 @@ class _FootnoteNumberWidget extends StatefulWidget {
     required this.isUnderlined,
     required this.primaryColor,
     required this.onTap,
+    required this.highlightColor,  // ADD THIS
+    required this.underlineColor,  // ADD THIS
   }) : super(key: key);
   
   @override
@@ -1590,6 +1724,15 @@ class _FootnoteNumberWidget extends StatefulWidget {
 
 class _FootnoteNumberWidgetState extends State<_FootnoteNumberWidget> {
   double _offsetX = 0.0;
+  
+  // Add this static method
+  static Color _getContrastingTextColorStatic(Color backgroundColor) {
+    double luminance = (0.299 * backgroundColor.red + 
+                        0.587 * backgroundColor.green + 
+                        0.114 * backgroundColor.blue) / 255;
+    return luminance > 0.5 ? Colors.black : Colors.white;
+  }
+  
   
   void updateOffset(double newOffset) {
     if (_offsetX != newOffset) {
@@ -1616,19 +1759,19 @@ class _FootnoteNumberWidgetState extends State<_FootnoteNumberWidget> {
                   bottom: 3,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.yellow,
-                  borderRadius: BorderRadius.circular(2),
+                  color: widget.highlightColor,
+                  borderRadius: BorderRadius.circular(0),
                 ),
                 child: Text(
                   '\u2066${widget.footnoteNum}\u2069',
                   style: TextStyle(
                     fontSize: widget.fontSize * 0.65,
                     fontWeight: FontWeight.bold,
-                    color: widget.color,
+                    color: widget.color,  // ← Use the original color when NOT highlighted
                     fontFeatures: const [FontFeature.superscripts()],
                     height: 1.8,
                     decoration: widget.isUnderlined ? TextDecoration.underline : null,
-                    decorationColor: widget.primaryColor,
+                    decorationColor: widget.underlineColor,
                     decorationThickness: 2,
                   ),
                 ),
@@ -1638,11 +1781,11 @@ class _FootnoteNumberWidgetState extends State<_FootnoteNumberWidget> {
                 style: TextStyle(
                   fontSize: widget.fontSize * 0.65,
                   fontWeight: FontWeight.bold,
-                  color: widget.color,
+                  color: widget.color,  // ← Use the original color when NOT highlighted
                   fontFeatures: const [FontFeature.superscripts()],
                   height: 1.8,
                   decoration: widget.isUnderlined ? TextDecoration.underline : null,
-                  decorationColor: widget.primaryColor,
+                  decorationColor: widget.underlineColor,
                   decorationThickness: 2,
                 ),
               ),
@@ -1653,6 +1796,14 @@ class _FootnoteNumberWidgetState extends State<_FootnoteNumberWidget> {
 
 class _VerseNumberWidgetState extends State<_VerseNumberWidget> {
   double _offsetX = 0.0;  // Move offset to STATE
+  
+  // Add this static method
+  static Color _getContrastingTextColorStatic(Color backgroundColor) {
+    double luminance = (0.299 * backgroundColor.red + 
+                        0.587 * backgroundColor.green + 
+                        0.114 * backgroundColor.blue) / 255;
+    return luminance > 0.5 ? Colors.black : Colors.white;
+  }
   
   void updateOffset(double newOffset) {
     if (_offsetX != newOffset) {
@@ -1676,7 +1827,7 @@ class _VerseNumberWidgetState extends State<_VerseNumberWidget> {
                 bottom: 2,
               ),
               decoration: BoxDecoration(
-                color: Colors.yellow,
+                color: widget.highlightColor,
                 borderRadius: BorderRadius.circular(0),
               ),
               child: Text(
@@ -1685,12 +1836,12 @@ class _VerseNumberWidgetState extends State<_VerseNumberWidget> {
                 style: TextStyle(
                   fontSize: widget.fontSize * 0.8,
                   fontWeight: FontWeight.bold,
-                  color: widget.color,
+      color: widget.color,  // ← Use the original color when NOT highlighted
                   fontFamily: widget.fontFamily,
                   letterSpacing: 0.5,
                   height: 1.8,
                   decoration: widget.isUnderlined ? TextDecoration.underline : null,
-                  decorationColor: widget.primaryColor,
+                  decorationColor: widget.underlineColor,
                   decorationThickness: 2,
                 ),
               ),
@@ -1701,7 +1852,7 @@ class _VerseNumberWidgetState extends State<_VerseNumberWidget> {
               style: TextStyle(
                 fontSize: widget.fontSize * 0.8,
                 fontWeight: FontWeight.bold,
-                color: widget.color,
+                color: widget.color,  // ← Use the original color when NOT highlighted
                 fontFamily: widget.fontFamily,
                 letterSpacing: 0.5,
                 height: 1.8,
