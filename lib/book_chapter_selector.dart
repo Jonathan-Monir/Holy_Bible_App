@@ -61,16 +61,16 @@ class BookChapterSelector extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (context) => SearchScreen(
-                    onChapterSelected: (chapter) {
-                      onChapterSelected(chapter);
-                      // Navigate to reader with selected chapter
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => MainReaderScreen(initialChapter: chapter),
-                        ),
-                      );
-                    },
+                  onChapterSelected: (chapter) {
+                    // Pop all the way back to root, then push MainReaderScreen
+                    Navigator.of(context).popUntil((route) => route.isFirst);
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => MainReaderScreen(initialChapter: chapter),
+                      ),
+                    );
+                  },
                   ),
                 ),
               );

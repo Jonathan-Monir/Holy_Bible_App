@@ -92,13 +92,61 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
   }
 
   void _navigateToChapter(int globalChapter) async {
+    print('🟢 NAVIGATE: _navigateToChapter called with globalChapter = $globalChapter');
+    print('🟢 NAVIGATE: totalChapters = $totalChapters');
+    print('🟢 NAVIGATE: currentGlobalChapter = $currentGlobalChapter');
+    
     if (globalChapter >= 1 && globalChapter <= totalChapters) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('last_chapter', globalChapter);
-      setState(() {
-        currentGlobalChapter = globalChapter;
-      });
-      _pageController.jumpToPage(globalChapter - 1);
+      print('🟢 NAVIGATE: Valid chapter range, proceeding...');
+      
+      try {
+        print('🟢 NAVIGATE: Getting SharedPreferences...');
+        final prefs = await SharedPreferences.getInstance();
+        
+        print('🟢 NAVIGATE: Saving last_chapter = $globalChapter');
+        await prefs.setInt('last_chapter', globalChapter);
+        
+        print('🟢 NAVIGATE: Checking if mounted = $mounted');
+        if (!mounted) {
+          print('🟢 NAVIGATE: NOT MOUNTED, aborting');
+          return;
+        }
+        
+        print('🟢 NAVIGATE: Calling setState...');
+        setState(() {
+          currentGlobalChapter = globalChapter;
+        });
+        
+        print('🟢 NAVIGATE: setState completed, currentGlobalChapter = $currentGlobalChapter');
+        print('🟢 NAVIGATE: Waiting 50ms...');
+        await Future.delayed(const Duration(milliseconds: 50));
+        
+        print('🟢 NAVIGATE: Checking hasClients = ${_pageController.hasClients}');
+        if (!_pageController.hasClients) {
+          print('🟢 NAVIGATE: PageController has NO clients, waiting...');
+          await Future.delayed(const Duration(milliseconds: 100));
+          print('🟢 NAVIGATE: After wait, hasClients = ${_pageController.hasClients}');
+        }
+        
+        if (mounted && _pageController.hasClients) {
+          print('🟢 NAVIGATE: About to jumpToPage(${globalChapter - 1})...');
+          _pageController.jumpToPage(globalChapter - 1);
+          print('🟢 NAVIGATE: jumpToPage completed successfully');
+          
+          print('🟢 NAVIGATE: Preloading adjacent pages...');
+          _preloadAdjacentPages(globalChapter);
+          print('🟢 NAVIGATE: Preload initiated');
+        } else {
+          print('🟢 NAVIGATE: Cannot jump - mounted=$mounted, hasClients=${_pageController.hasClients}');
+        }
+        
+        print('🟢 NAVIGATE: _navigateToChapter completed successfully');
+      } catch (e, stackTrace) {
+        print('🔴 NAVIGATE ERROR: $e');
+        print('🔴 NAVIGATE STACK: $stackTrace');
+      }
+    } else {
+      print('🟢 NAVIGATE: INVALID chapter range - globalChapter=$globalChapter not in 1-$totalChapters');
     }
   }
 
@@ -199,19 +247,30 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
           ],
         ),
         actions: [
-          IconButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => SearchScreen(
-                    onChapterSelected: _navigateToChapter,
-                  ),
+        IconButton(
+          onPressed: () {
+            print('🟡 MAIN: Opening SearchScreen...');
+            
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => SearchScreen(
+                  onChapterSelected: (globalChapter) {
+                    print('🟡 MAIN: Callback received with globalChapter=$globalChapter');
+                    print('🟡 MAIN: Calling _navigateToChapter...');
+                    
+                    // Navigate immediately without popping
+                    _navigateToChapter(globalChapter);
+                    
+                    // Then pop the search screen
+                    Navigator.of(context).pop();
+                  },
                 ),
-              );
-            },
-            icon: Icon(Icons.search, color: Theme.of(context).primaryColor),
-          ),
+              ),
+            );
+          },
+          icon: Icon(Icons.search, color: Theme.of(context).primaryColor),
+        ),
           IconButton(
             onPressed: () {
               Navigator.push(

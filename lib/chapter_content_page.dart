@@ -79,17 +79,31 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
 
   @override
   void initState() {
+      print('🟣 CHAPTER_PAGE: initState called');
+      print('🟣 CHAPTER_PAGE: bookIndex=${widget.bookIndex}, chapterNumber=${widget.chapterNumber}');
+      
       super.initState();
       _scrollController = ScrollController();
-      _loadSavedAnnotations();
-      _loadChapterContent();
       
-      // Listen for orientation/size changes
+      print('🟣 CHAPTER_PAGE: Scheduling post-frame callback...');
+      // Defer heavy operations until after the first frame
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        print('🟣 CHAPTER_PAGE: Post-frame callback executing, mounted=$mounted');
         if (mounted) {
+          print('🟣 CHAPTER_PAGE: Loading saved annotations...');
+          _loadSavedAnnotations();
+          
+          print('🟣 CHAPTER_PAGE: Loading chapter content...');
+          _loadChapterContent();
+          
+          print('🟣 CHAPTER_PAGE: Scheduling orientation listener...');
           _scheduleOrientationListener();
+        } else {
+          print('🟣 CHAPTER_PAGE: NOT MOUNTED in post-frame callback');
         }
       });
+      
+      print('🟣 CHAPTER_PAGE: initState completed');
   }
 
   void _scheduleOrientationListener() {
@@ -325,9 +339,16 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       // print('📝 Footnotes loaded, length: ${fn.length}');
       
       if (mounted) {
-        // print('🔄 Parsing verses...');
+        print('🔄 Parsing verses for chapter ${widget.chapterNumber}...');
+        print('📄 Raw content length: ${content.length}');
+        print('📄 First 500 chars: ${content.substring(0, min(500, content.length))}');
+        
         final parsedVerses = _parseVersesToList(content);
-        // print('✅ Parsed ${parsedVerses.length} verses');
+        print('✅ Parsed ${parsedVerses.length} verses');
+        
+        if (parsedVerses.isEmpty) {
+          print('❌ WARNING: No verses parsed!');
+        }
         
         for (int i = 0; i < min(5, parsedVerses.length); i++) {
           print('   Verse ${parsedVerses[i].number}: ${parsedVerses[i].text.substring(0, min(50, parsedVerses[i].text.length))}...');
@@ -370,61 +391,98 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   }
 
   List<VerseData> _parseVersesToList(String content) {
-    // print('🔍 PARSE: Starting to parse content, length: ${content.length}');
-    
     List<VerseData> verseList = [];
     List<String> lines = content.split('\n');
     
-    // print('🔍 PARSE: Split into ${lines.length} lines');
-    
-    for (int i = 0; i < min(3, lines.length); i++) {
-      // print('   Line $i: ${lines[i].substring(0, min(100, lines[i].length))}');
-    }
-    
-    for (String line in lines) {
-      if (line.trim().isEmpty) continue;
-      
+    // Check if this chapter has verse numbers
+    bool hasVerseNumbers = lines.any((line) {
+      if (line.trim().isEmpty) return false;
       RegExp versePattern = RegExp(r'^(\d+)(.*)');
-      Match? match = versePattern.firstMatch(line.trim());
+      return versePattern.hasMatch(line.trim());
+    });
+    
+    if (!hasVerseNumbers) {
+      // Handle chapters without verse numbers (auto-number them)
+      int autoVerseNumber = 1;
+      String? chapterHeading;
       
-      if (match != null) {
-        int verseNumber = int.parse(match.group(1)!);
-        String verseText = match.group(2)!.trim();
+      for (String line in lines) {
+        if (line.trim().isEmpty) continue;
         
-        if (verseText.isNotEmpty) {
-          List<int> footnoteRefs = [];
-          RegExp footnotePattern = RegExp(r'\[(\d+)\]');
-          List<Match> matches = footnotePattern.allMatches(verseText).toList();
-          
-          matches.sort((a, b) => a.start.compareTo(b.start));
-          
-          for (Match m in matches) {
-            int refNum = int.parse(m.group(1)!);
-            if (!footnoteRefs.contains(refNum)) {
-              footnoteRefs.add(refNum);
-            }
-          }
-          
-          verseList.add(VerseData(
-            number: verseNumber,
-            text: verseText,
-            footnoteRefs: footnoteRefs,
-          ));
-          
-          if (verseList.length <= 3) {
-            // print('   ✓ Added verse $verseNumber: ${verseText.substring(0, min(50, verseText.length))}...');
+        // First non-empty line might be chapter heading if it contains specific patterns
+        if (chapterHeading == null) {
+          String cleanLine = BibleData.removeTashkeel(line.trim());
+          if (RegExp(r'^(اَلْمَزْمُورُ|الإصحاح|Chapter)').hasMatch(cleanLine)) {
+            chapterHeading = line.trim();
+            verseList.add(VerseData(number: 0, text: chapterHeading));
+            continue;
           }
         }
-      } else {
-        // Line doesn't match verse pattern - might be chapter heading
-        if (line.trim().isNotEmpty) {
-          // print('   ⚠ Non-verse line: ${line.substring(0, min(100, line.length))}');
-          verseList.add(VerseData(number: 0, text: line.trim()));
+        
+        // Auto-number verses
+        String verseText = line.trim();
+        
+        // Extract footnote references
+        List<int> footnoteRefs = [];
+        RegExp footnotePattern = RegExp(r'\[(\d+)\]');
+        List<Match> matches = footnotePattern.allMatches(verseText).toList();
+        matches.sort((a, b) => a.start.compareTo(b.start));
+        
+        for (Match m in matches) {
+          int refNum = int.parse(m.group(1)!);
+          if (!footnoteRefs.contains(refNum)) {
+            footnoteRefs.add(refNum);
+          }
+        }
+        
+        verseList.add(VerseData(
+          number: autoVerseNumber,
+          text: verseText,
+          footnoteRefs: footnoteRefs,
+        ));
+        autoVerseNumber++;
+      }
+    } else {
+      // Original logic for chapters WITH verse numbers
+      for (String line in lines) {
+        if (line.trim().isEmpty) continue;
+        
+        RegExp versePattern = RegExp(r'^(\d+)(.*)');
+        Match? match = versePattern.firstMatch(line.trim());
+        
+        if (match != null) {
+          int verseNumber = int.parse(match.group(1)!);
+          String verseText = match.group(2)!.trim();
+          
+          if (verseText.isNotEmpty) {
+            List<int> footnoteRefs = [];
+            RegExp footnotePattern = RegExp(r'\[(\d+)\]');
+            List<Match> matches = footnotePattern.allMatches(verseText).toList();
+            
+            matches.sort((a, b) => a.start.compareTo(b.start));
+            
+            for (Match m in matches) {
+              int refNum = int.parse(m.group(1)!);
+              if (!footnoteRefs.contains(refNum)) {
+                footnoteRefs.add(refNum);
+              }
+            }
+            
+            verseList.add(VerseData(
+              number: verseNumber,
+              text: verseText,
+              footnoteRefs: footnoteRefs,
+            ));
+          }
+        } else {
+          // Line doesn't match verse pattern - might be chapter heading
+          if (line.trim().isNotEmpty) {
+            verseList.add(VerseData(number: 0, text: line.trim()));
+          }
         }
       }
     }
     
-    // print('🔍 PARSE: Complete, found ${verseList.length} verses');
     return verseList;
   }
 
@@ -613,23 +671,18 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       VerseData verse = verses[i];
       
       if (verse.number == 0) {
-        String displayText = widget.removeDiacritics ? BibleData.removeTashkeel(verse.text) : verse.text;
-        
-        allSpans.add(TextSpan(
-          text: displayText,
-          style: _getFontStyle(isArabic).copyWith(
-            fontWeight: FontWeight.bold,
-            color: themeProvider.primaryTextColor,
-            fontSize: widget.fontSize * 1.1,
-            height: 1.8,
-          ),
-        ));
-        allSpans.add(const TextSpan(text: '\n\n'));
+        // Skip chapter headings - they're already shown in the page title
+        // This handles both manually numbered chapters and auto-numbered ones
+        continue;
       } else {
+        // Create unique identifiers using both verse number AND index
         final uniqueKeyIdentifier = '${verse.number}_$i';
         if (!_uniqueVerseKeys.containsKey(uniqueKeyIdentifier)) {
           _uniqueVerseKeys[uniqueKeyIdentifier] = GlobalKey();
         }
+        
+        // CRITICAL FIX: Use index-based key for _verseKeys too to avoid duplicates
+        final verseKeyIdentifier = '${verse.number}_$i';
         if (!_verseKeys.containsKey(verse.number)) {
           _verseKeys[verse.number] = GlobalKey();
         }
@@ -643,11 +696,8 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         bool verseNumHighlighted = hlRanges.any((r) => r.start == 0 || r.start < verseNumText.length);
         bool verseNumUnderlined = ulRanges.any((r) => r.start == 0 || r.start < verseNumText.length);
 
-        // Use the uniqueWidgetKey for both the widget AND tracking
-        final verseNumberKey = _verseNumberKeys.putIfAbsent(
-          verse.number, 
-          () => uniqueWidgetKey  // ← Use the same unique key
-        );
+        // CRITICAL FIX: Create a unique GlobalKey for each verse number widget instance
+        final verseNumberKey = GlobalKey();  // ← Always create a new unique key
 
         allSpans.add(WidgetSpan(
           alignment: PlaceholderAlignment.baseline,
@@ -1456,23 +1506,22 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
 
     try {
       print('🔄 SWAP: Collecting verse number positions...');
-      print('🔄 SWAP: _verseNumberKeys has ${_verseNumberKeys.length} entries');
+      print('🔄 SWAP: _uniqueVerseKeys has ${_uniqueVerseKeys.length} entries');
       print('🔄 SWAP: _footnoteNumberKeys has ${_footnoteNumberKeys.length} entries');
-      
-      // Group verse numbers by their Y position (same line)
-      Map<double, List<_VersePosition>> lineGroups = {};
       
       int validContexts = 0;
       int nullContexts = 0;
-      
-      for (var entry in _verseNumberKeys.entries) {
-        final verseNum = entry.key;
+
+      // Collect ALL verse number widgets (now each has unique GlobalKey)
+      List<_VersePosition> allPositions = [];
+
+      for (var entry in _uniqueVerseKeys.entries) {
+        final uniqueId = entry.key;  // This is "verseNumber_index"
         final key = entry.value;
         final context = key.currentContext;
         
         if (context == null) {
           nullContexts++;
-          print('   ⚠️ Verse $verseNum: context is NULL');
           continue;
         }
         
@@ -1480,42 +1529,28 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         
         final renderBox = context.findRenderObject() as RenderBox?;
         
-        if (renderBox == null) {
-          print('   ⚠️ Verse $verseNum: renderBox is NULL');
-          continue;
-        }
-        
-        if (!renderBox.hasSize) {
-          print('   ⚠️ Verse $verseNum: renderBox has NO SIZE');
+        if (renderBox == null || !renderBox.hasSize) {
           continue;
         }
         
         final position = renderBox.localToGlobal(Offset.zero);
-        final yPos = (position.dy / 10).round() * 10.0;
         
-        print('   ✓ Verse $verseNum: x=${position.dx.toStringAsFixed(1)}, y=${position.dy.toStringAsFixed(1)}, grouped_y=$yPos');
+        // Extract verse number from uniqueId (format: "verseNumber_index")
+        int verseNumber = int.parse(uniqueId.split('_')[0]);
         
-        if (!lineGroups.containsKey(yPos)) {
-          lineGroups[yPos] = [];
-        }
-        
-        lineGroups[yPos]!.add(_VersePosition(
-          verseNumber: verseNum,
+        allPositions.add(_VersePosition(
+          verseNumber: verseNumber,
           xPosition: position.dx,
+          yPosition: position.dy,
           key: key,
         ));
       }
-      
-      print('🔄 SWAP: Valid contexts: $validContexts, Null contexts: $nullContexts');
-      print('🔄 SWAP: Found ${lineGroups.length} different Y positions (lines)');
-      
 
-
+      // Add footnote number positions
       for (var entry in _footnoteNumberKeys.entries) {
-        final footnoteKeyId = entry.key;  // This is a String
+        final footnoteKeyId = entry.key;
         final key = entry.value;
         final context = key.currentContext;
-        
         
         if (context == null) continue;
         
@@ -1523,23 +1558,26 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         
         if (renderBox != null && renderBox.hasSize) {
           final position = renderBox.localToGlobal(Offset.zero);
-          final yPos = (position.dy / 10).round() * 10.0;
-          
-          
-          if (!lineGroups.containsKey(yPos)) {
-            lineGroups[yPos] = [];
-          }
           
           // Use hash code as unique identifier (won't conflict with positive verse numbers)
-          lineGroups[yPos]!.add(_VersePosition(
-            verseNumber: -footnoteKeyId.hashCode,  // Use hash of string ID
+          allPositions.add(_VersePosition(
+            verseNumber: -footnoteKeyId.hashCode,
             xPosition: position.dx,
+            yPosition: position.dy,
             key: key,
           ));
         }
       }
 
-      
+      // Group by Y position (same line)
+      Map<double, List<_VersePosition>> lineGroups = {};
+      for (var pos in allPositions) {
+        final yPos = (pos.yPosition / 10).round() * 10.0;
+        if (!lineGroups.containsKey(yPos)) {
+          lineGroups[yPos] = [];
+        }
+        lineGroups[yPos]!.add(pos);
+      }
       
       // For each line with multiple verse numbers, swap them
       int lineIndex = 0;
@@ -1655,11 +1693,13 @@ class VerseData {
 class _VersePosition {
   final int verseNumber;
   final double xPosition;
+  final double yPosition;  // ← Add this
   final GlobalKey key;
   
   _VersePosition({
     required this.verseNumber,
     required this.xPosition,
+    required this.yPosition,  // ← Add this
     required this.key,
   });
 }

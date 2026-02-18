@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'bible_data.dart';
 import 'book_chapter_selector.dart';
 import 'theme_provider.dart';
+import 'main_reader_screen.dart';
 
 class ChapterSelectorScreen extends StatefulWidget {
   final int currentChapter;
@@ -264,8 +265,14 @@ class _ChapterSelectorScreenState extends State<ChapterSelectorScreen>
                   MaterialPageRoute(
                     builder: (context) => SearchScreen(
                       onChapterSelected: (chapter) {
-                        widget.onChapterSelected(chapter);
-                        Navigator.pop(context); // Close search screen
+                        // Pop all the way back to root, then push MainReaderScreen
+                        Navigator.of(context).popUntil((route) => route.isFirst);
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => MainReaderScreen(initialChapter: chapter),
+                          ),
+                        );
                       },
                     ),
                   ),

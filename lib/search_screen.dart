@@ -382,12 +382,22 @@ class _SearchScreenState extends State<SearchScreen> {
                         ],
                       ),
                       onTap: () {
+                        print('🔴 SEARCH: Verse tapped');
+                        print('🔴 SEARCH: result.bookIndex = ${result.bookIndex}');
+                        print('🔴 SEARCH: result.chapterNumber = ${result.chapterNumber}');
+                        
                         final globalChapter = _getGlobalChapter(
                           result.bookIndex,
                           result.chapterNumber,
                         );
+                        
+                        print('🔴 SEARCH: Calculated globalChapter = $globalChapter');
+                        print('🔴 SEARCH: Calling widget.onChapterSelected...');
+                        
+                        // Call the callback - this will navigate AND close the search screen
                         widget.onChapterSelected(globalChapter);
-                        Navigator.pop(context);
+                        
+                        print('🔴 SEARCH: Callback completed');
                       },
                     ),
                   );
