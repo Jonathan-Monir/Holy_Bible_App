@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+
 class BibleData {
   static List<Map<String, dynamic>> books = [
     {'name': 'Genesis', 'shortName': 'Gen', 'chapters': 50, 'fileName': 'Genesis.txt', 'arabicName': 'التكوين'},
