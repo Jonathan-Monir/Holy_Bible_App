@@ -7,6 +7,7 @@ import 'bible_data.dart';
 import 'book_chapter_selector.dart';
 import 'theme_provider.dart';
 import 'main_reader_screen.dart';
+import 'banner_ad_widget.dart';
 
 class ChapterSelectorScreen extends StatefulWidget {
   final int currentChapter;
@@ -286,7 +287,6 @@ class _ChapterSelectorScreenState extends State<ChapterSelectorScreen>
         body: TabBarView(
           controller: _tabController,
           children: [
-            // Old Testament
             Column(
               children: [
                 Container(
@@ -340,10 +340,11 @@ class _ChapterSelectorScreenState extends State<ChapterSelectorScreen>
                 Expanded(
                   child: _buildBooksList(oldTestamentBooks, 0),
                 ),
+                SafeArea(
+                  child: const BannerAdWidget(),
+                ),
               ],
             ),
-            
-            // New Testament
             Column(
               children: [
                 Container(
@@ -396,6 +397,9 @@ class _ChapterSelectorScreenState extends State<ChapterSelectorScreen>
                 ),
                 Expanded(
                   child: _buildBooksList(newTestamentBooks, oldTestamentCount),
+                ),
+                SafeArea(
+                  child: const BannerAdWidget(),
                 ),
               ],
             ),

@@ -1,3 +1,4 @@
+// android/app/build.gradle
 plugins {
     id("com.android.application")
     id("kotlin-android")

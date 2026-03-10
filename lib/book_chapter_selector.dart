@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'bible_data.dart';
 import 'main_reader_screen.dart';
 import 'theme_provider.dart';
+import 'banner_ad_widget.dart';
 
 class BookChapterSelector extends StatelessWidget {
   final int bookIndex;
@@ -80,86 +81,95 @@ class BookChapterSelector extends StatelessWidget {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Select Chapter',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: themeProvider.primaryTextColor,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 6,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 1,
-                ),
-                itemCount: totalChapters,
-                itemBuilder: (context, index) {
-                  final chapterNumber = index + 1;
-                  final isCurrentChapter = chapterNumber == currentChapterInBook;
-                  final globalChapter = _getGlobalChapterNumber(chapterNumber);
-                  
-                  return GestureDetector(
-                    onTap: () {
-                      onChapterSelected(globalChapter);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => MainReaderScreen(initialChapter: globalChapter),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: isCurrentChapter 
-                            ? Theme.of(context).primaryColor 
-                            : Theme.of(context).cardColor,
-                        border: Border.all(
-                          color: isCurrentChapter 
-                              ? Theme.of(context).primaryColor 
-                              : (Theme.of(context).brightness == Brightness.dark
-                                  ? Colors.grey.shade700
-                                  : Colors.grey.shade300),
-                          width: isCurrentChapter ? 2 : 1,
-                        ),
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: [
-                          if (isCurrentChapter)
-                            BoxShadow(
-                              color: Theme.of(context).primaryColor.withOpacity(0.3),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
-                            ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Text(
-                          chapterNumber.toString(),
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: isCurrentChapter 
-                                ? Colors.white 
-                                : themeProvider.primaryTextColor,
-                          ),
-                        ),
-                      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Select Chapter',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: themeProvider.primaryTextColor,
                     ),
-                  );
-                },
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: GridView.builder(
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 6,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: 1,
+                      ),
+                      itemCount: totalChapters,
+                      itemBuilder: (context, index) {
+                        final chapterNumber = index + 1;
+                        final isCurrentChapter = chapterNumber == currentChapterInBook;
+                        final globalChapter = _getGlobalChapterNumber(chapterNumber);
+                        
+                        return GestureDetector(
+                          onTap: () {
+                            onChapterSelected(globalChapter);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => MainReaderScreen(initialChapter: globalChapter),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: isCurrentChapter 
+                                  ? Theme.of(context).primaryColor 
+                                  : Theme.of(context).cardColor,
+                              border: Border.all(
+                                color: isCurrentChapter 
+                                    ? Theme.of(context).primaryColor 
+                                    : (Theme.of(context).brightness == Brightness.dark
+                                        ? Colors.grey.shade700
+                                        : Colors.grey.shade300),
+                                width: isCurrentChapter ? 2 : 1,
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                              boxShadow: [
+                                if (isCurrentChapter)
+                                  BoxShadow(
+                                    color: Theme.of(context).primaryColor.withOpacity(0.3),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                              ],
+                            ),
+                            child: Center(
+                              child: Text(
+                                chapterNumber.toString(),
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: isCurrentChapter 
+                                      ? Colors.white 
+                                      : themeProvider.primaryTextColor,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+          SafeArea(
+            child: const BannerAdWidget(),
+          ),
+        ],
       ),
     );
   }

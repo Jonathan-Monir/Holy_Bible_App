@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'bible_data.dart';
 import 'theme_provider.dart';
 import 'search_filter.dart';
+import 'banner_ad_widget.dart';
 
 class SearchScreen extends StatefulWidget {
   final Function(int) onChapterSelected;
@@ -222,7 +223,6 @@ class _SearchScreenState extends State<SearchScreen> {
       ),
       body: Column(
         children: [
-          // Search bar
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: TextField(
@@ -261,8 +261,6 @@ class _SearchScreenState extends State<SearchScreen> {
               onSubmitted: _performSearch,
             ),
           ),
-          
-          // Filter chip
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Row(
@@ -310,10 +308,7 @@ class _SearchScreenState extends State<SearchScreen> {
               ],
             ),
           ),
-          
           const SizedBox(height: 16),
-          
-          // Results
           if (_isSearching)
             const Expanded(
               child: Center(
@@ -385,18 +380,13 @@ class _SearchScreenState extends State<SearchScreen> {
                         print('🔴 SEARCH: Verse tapped');
                         print('🔴 SEARCH: result.bookIndex = ${result.bookIndex}');
                         print('🔴 SEARCH: result.chapterNumber = ${result.chapterNumber}');
-                        
                         final globalChapter = _getGlobalChapter(
                           result.bookIndex,
                           result.chapterNumber,
                         );
-                        
                         print('🔴 SEARCH: Calculated globalChapter = $globalChapter');
                         print('🔴 SEARCH: Calling widget.onChapterSelected...');
-                        
-                        // Call the callback - this will navigate AND close the search screen
                         widget.onChapterSelected(globalChapter);
-                        
                         print('🔴 SEARCH: Callback completed');
                       },
                     ),
@@ -431,6 +421,9 @@ class _SearchScreenState extends State<SearchScreen> {
                 ),
               ),
             ),
+          SafeArea(
+            child: const BannerAdWidget(),
+          ),
         ],
       ),
     );

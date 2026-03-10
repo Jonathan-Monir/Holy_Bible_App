@@ -8,6 +8,7 @@ import 'search_screen.dart';
 import 'chapter_content_page.dart';
 import 'chapter_selector_screen.dart';
 import 'theme_provider.dart';
+import 'banner_ad_widget.dart';
 
 class MainReaderScreen extends StatefulWidget {
   final int? initialChapter;
@@ -179,7 +180,6 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
         elevation: 1,
         title: Row(
           children: [
-            // Left Arrow
             IconButton(
               onPressed: currentGlobalChapter > 1 ? _goToPreviousChapter : null,
               icon: Icon(
@@ -190,8 +190,6 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
                 size: 28,
               ),
             ),
-            
-            // Chapter Info Rectangle
             Expanded(
               child: GestureDetector(
                 onTap: _showChapterSelector,
@@ -232,8 +230,6 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
                 ),
               ),
             ),
-            
-            // Right Arrow
             IconButton(
               onPressed: currentGlobalChapter < totalChapters ? _goToNextChapter : null,
               icon: Icon(
@@ -247,30 +243,25 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
           ],
         ),
         actions: [
-        IconButton(
-          onPressed: () {
-            print('🟡 MAIN: Opening SearchScreen...');
-            
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => SearchScreen(
-                  onChapterSelected: (globalChapter) {
-                    print('🟡 MAIN: Callback received with globalChapter=$globalChapter');
-                    print('🟡 MAIN: Calling _navigateToChapter...');
-                    
-                    // Navigate immediately without popping
-                    _navigateToChapter(globalChapter);
-                    
-                    // Then pop the search screen
-                    Navigator.of(context).pop();
-                  },
+          IconButton(
+            onPressed: () {
+              print('🟡 MAIN: Opening SearchScreen...');
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SearchScreen(
+                    onChapterSelected: (globalChapter) {
+                      print('🟡 MAIN: Callback received with globalChapter=$globalChapter');
+                      print('🟡 MAIN: Calling _navigateToChapter...');
+                      _navigateToChapter(globalChapter);
+                      Navigator.of(context).pop();
+                    },
+                  ),
                 ),
-              ),
-            );
-          },
-          icon: Icon(Icons.search, color: Theme.of(context).primaryColor),
-        ),
+              );
+            },
+            icon: Icon(Icons.search, color: Theme.of(context).primaryColor),
+          ),
           IconButton(
             onPressed: () {
               Navigator.push(
@@ -306,68 +297,63 @@ class _MainReaderScreenState extends State<MainReaderScreen> {
           ),
         ],
       ),
-      body: PageView.builder(
-        controller: _pageController,
-        itemCount: totalChapters,
-        allowImplicitScrolling: true,
-        pageSnapping: true,  // ADD THIS LINE - ensures instant snap to page
-        physics: const PageScrollPhysics(),  // ADD THIS LINE - removes bounce/momentum, makes it feel more instant
-        onPageChanged: (index) async {
-          final newChapter = index + 1;
-          
-          SharedPreferences.getInstance().then((prefs) {
-            prefs.setInt('last_chapter', newChapter);
-          });
-          
-          setState(() {
-            currentGlobalChapter = newChapter;
-          });
-          
-          // Trigger preloading of new adjacent chapters
-          _preloadAdjacentPages(newChapter);
-        },
-        itemBuilder: (context, index) {
-          final globalChapter = index + 1;
-          
-          // Use cached page if available and settings haven't changed
-          final cacheKey = '$globalChapter-$_fontSize-$_fontFamily-$_removeDiacritics';
-          if (_pageCache.containsKey(cacheKey)) {
-            return _pageCache[cacheKey]!;
-          }
-          
-          // Build new page
-          final info = BibleData.getChapterInfo(globalChapter);
-          final page = ChapterContentPage(
-            key: ValueKey('$globalChapter-$_fontFamily-$_removeDiacritics'),
-            bookName: info['bookName'],
-            shortName: info['shortName'],
-            arabicName: info['arabicName'],
-            chapterNumber: info['chapterInBook'],
-            bookIndex: info['bookIndex'],
-            fontSize: _fontSize,
-            fontFamily: _fontFamily,
-            removeDiacritics: _removeDiacritics,
-          );
-          
-          // Cache the page
-          _pageCache[cacheKey] = page;
-          
-          // Limit cache size to prevent memory issues
-          if (_pageCache.length > 10) {
-            // Remove old entries based on chapter number (extract from string key)
-            final keysToRemove = _pageCache.keys
-                .where((key) {
-                  final chapterNum = int.tryParse(key.split('-').first) ?? 0;
-                  return (chapterNum - currentGlobalChapter).abs() > 5;
-                })
-                .toList();
-            for (var key in keysToRemove) {
-              _pageCache.remove(key);
-            }
-          }
-          
-          return page;
-        },
+      body: Column(
+        children: [
+          Expanded(
+            child: PageView.builder(
+              controller: _pageController,
+              itemCount: totalChapters,
+              allowImplicitScrolling: true,
+              pageSnapping: true,
+              physics: const PageScrollPhysics(),
+              onPageChanged: (index) async {
+                final newChapter = index + 1;
+                SharedPreferences.getInstance().then((prefs) {
+                  prefs.setInt('last_chapter', newChapter);
+                });
+                setState(() {
+                  currentGlobalChapter = newChapter;
+                });
+                _preloadAdjacentPages(newChapter);
+              },
+              itemBuilder: (context, index) {
+                final globalChapter = index + 1;
+                final cacheKey = '$globalChapter-$_fontSize-$_fontFamily-$_removeDiacritics';
+                if (_pageCache.containsKey(cacheKey)) {
+                  return _pageCache[cacheKey]!;
+                }
+                final info = BibleData.getChapterInfo(globalChapter);
+                final page = ChapterContentPage(
+                  key: ValueKey('$globalChapter-$_fontFamily-$_removeDiacritics'),
+                  bookName: info['bookName'],
+                  shortName: info['shortName'],
+                  arabicName: info['arabicName'],
+                  chapterNumber: info['chapterInBook'],
+                  bookIndex: info['bookIndex'],
+                  fontSize: _fontSize,
+                  fontFamily: _fontFamily,
+                  removeDiacritics: _removeDiacritics,
+                );
+                _pageCache[cacheKey] = page;
+                if (_pageCache.length > 10) {
+                  final keysToRemove = _pageCache.keys
+                      .where((key) {
+                        final chapterNum = int.tryParse(key.split('-').first) ?? 0;
+                        return (chapterNum - currentGlobalChapter).abs() > 5;
+                      })
+                      .toList();
+                  for (var key in keysToRemove) {
+                    _pageCache.remove(key);
+                  }
+                }
+                return page;
+              },
+            ),
+          ),
+          SafeArea(
+            child: const BannerAdWidget(),
+          ),
+        ],
       ),
     );
   }
