@@ -1468,7 +1468,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
               border: Border.all(color: Theme.of(context).dividerColor),
             ),
             child: Text(
-              '${widget.arabicName} - افرايم بشرى برسوم (ترجمة فانديك منحقة باسم يَهْوِه)',
+              '${widget.arabicName} - ترجمة باسم يهوه - لإڤرايم بشرى برسوم',
               style: _getFontStyle(true).copyWith(
                 fontSize: widget.fontSize * 0.8,
                 color: themeProvider.secondaryTextColor,
