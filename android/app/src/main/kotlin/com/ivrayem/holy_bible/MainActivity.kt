@@ -1,4 +1,4 @@
-package com.example.holy_bible
+package com.ivrayem.holy_bible
 
 import io.flutter.embedding.android.FlutterActivity
 

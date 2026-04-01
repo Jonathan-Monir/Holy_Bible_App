@@ -1,21 +1,9 @@
-app name:
-
-guide for sdk android: https://developers.google.com/admob/android/quick-start#import_the_mobile_ads_sdk
-IBBarsoum.YHWH.Arabic.Bible
-app id: ca-app-pub-6977244911940337~1959719318
-guide to insert banner: https://developers.google.com/admob/android/banner
-ad unit id:ca-app-pub-6977244911940337/3478822721
-
-
-
-
-
-
 
 Instructions for the whole chat:  
 1. don't give the full code files, just give me the function, complete block and where exactly should i put it (don't give block or function that missing lines inside it please) 
 2. this code contain many more files, so please don't start creating any code until you don't need to see any other code or file
 ├── ad_helper.dart
+├── app_open_ad_manager.dart
 ├── arabic_selectable_text.dart
 ├── banner_ad_widget.dart
 ├── bible_data.dart
@@ -23,6 +11,7 @@ Instructions for the whole chat:
 ├── chapter_content_page.dart
 ├── chapter_selector_screen.dart
 ├── color_picker_dialog.dart
+├── crash_log.txt
 ├── highlight_prob.txt
 ├── main.dart
 ├── main_reader_screen.dart
@@ -34,3 +23,5 @@ Instructions for the whole chat:
 ├── splash_screen.dart
 ├── theme_provider.dart
 └── todo_list.txt
+
+1 directory, 21 files

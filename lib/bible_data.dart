@@ -2,9 +2,6 @@
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 
 class BibleData {
@@ -116,68 +113,15 @@ class BibleData {
   }
 
   static Future<bool> _checkStoragePermissions() async {
-    if (kIsWeb || !Platform.isAndroid) {
-      return true;
-    }
-    
-    try {
-      var status = await Permission.storage.status;
-      if (status.isDenied) {
-        status = await Permission.storage.request();
-      }
-      
-      if (Platform.isAndroid) {
-        var manageStatus = await Permission.manageExternalStorage.status;
-        if (manageStatus.isDenied) {
-          manageStatus = await Permission.manageExternalStorage.request();
-        }
-      }
-      
-      return status.isGranted;
-    } catch (e) {
-      print('Permission check error: $e');
-      return false;
-    }
+    return true;
   }
 
   static Future<bool> fileExistsInStorage(String fileName) async {
-    if (kIsWeb) {
-      return false;
-    }
-    
-    try {
-      final bibleDocsPath = await getBibleDocsPath();
-      final file = File('$bibleDocsPath/$fileName');
-      return await file.exists();
-    } catch (e) {
-      return false;
-    }
+    return false;
   }
 
   static Future<void> createMissingBookFile(String fileName, String bookName, String arabicName) async {
-    if (kIsWeb) {
-      return;
-    }
-    
-    try {
-      bool hasPermission = await _checkStoragePermissions();
-      if (!hasPermission) {
-        print('Storage permission denied');
-        return;
-      }
-      
-      final bibleDocsPath = await getBibleDocsPath();
-      final file = File('$bibleDocsPath/$fileName');
-      
-      if (!await file.exists()) {
-        final placeholder = 'This book isn\'t available yet';
-        
-        await file.writeAsString(placeholder);
-        print('Created placeholder file: ${file.path}');
-      }
-    } catch (e) {
-      print('Error creating file $fileName: $e');
-    }
+    return;
   }
 
   static Future<String> getChapterContent(int bookIndex, int chapterNumber) async {
@@ -208,114 +152,27 @@ class BibleData {
   }
 
 // Add this NEW method right after getChapterContent (around line 180)
-static Future<Map<int, String>> _loadAndCacheBook(String fileName, String bookName, String arabicName) async {
-  print('📚 Loading book: $fileName');
-  
-  String? content;
-  bool foundContent = false;
-  
-  try {
-    if (!kIsWeb) {
-      final bibleDocsPath = await getBibleDocsPath();
-      final externalFile = File('$bibleDocsPath/$fileName');
-      
-      print('📂 Checking external file: ${externalFile.path}');
-      
-      if (await externalFile.exists()) {
-        try {
-          content = await externalFile.readAsString();
-          foundContent = true;
-          print('✅ Loaded from external: ${content.length} characters');
-        } catch (e) {
-          print('❌ Error reading file $fileName: $e');
-        }
-      } else {
-        print('⚠ External file not found');
-      }
-    }
-    
-    if (!foundContent) {
-      try {
-        print('📦 Trying to load from assets: assets/bible_docs/$fileName');
-        content = await rootBundle.loadString('assets/bible_docs/$fileName');
-        foundContent = true;
-        print('✅ Loaded from assets: ${content.length} characters');
-      } catch (e) {
-        print('❌ File not found in assets: assets/bible_docs/$fileName');
-      }
-    }
-    
-    if (!foundContent) {
-      print('❌ No content found for $fileName');
-      if (!kIsWeb) {
-        await createMissingBookFile(fileName, bookName, arabicName);
-      }
-      return {1: 'This book isn\'t available yet'};
-    }
-    
-    print('🔄 Parsing document content...');
-    final chapters = _parseDocumentContent(content!);
-    print('✅ Parsed ${chapters.length} chapters');
-    
-    _bookCache[fileName] = chapters;
-    
-    return chapters;
-    
-  } catch (e, stackTrace) {
-    print('❌ Error loading book: $e');
-    print('❌ Stack trace: $stackTrace');
-    return {1: 'This book isn\'t available yet'};
-  }
-}
-
-  static Future<String> getBibleDocsPath() async {
-    if (kIsWeb) {
-      return 'web_storage';
-    }
-    
-    Directory? directory;
+  static Future<Map<int, String>> _loadAndCacheBook(String fileName, String bookName, String arabicName) async {
+    print('📚 Loading book: $fileName');
     
     try {
-      if (Platform.isAndroid) {
-        List<String> possiblePaths = [
-          '/storage/emulated/0/Documents',
-          '/storage/emulated/0/Documents/Holy_bible',
-          '/sdcard/Documents',
-          '/sdcard/Documents/Holy_bible',
-        ];
-        
-        for (String path in possiblePaths) {
-          directory = Directory(path);
-          if (await directory.exists()) {
-            print('✅ Found documents directory: $path');
-            break;
-          }
-        }
-        
-        if (directory == null || !await directory.exists()) {
-          directory = await getApplicationDocumentsDirectory();
-          print('📁 Using app documents directory: ${directory.path}');
-        }
-      } else {
-        directory = await getApplicationDocumentsDirectory();
-      }
+      print('📦 Loading from assets: assets/bible_docs/$fileName');
+      final content = await rootBundle.loadString('assets/bible_docs/$fileName');
+      print('✅ Loaded from assets: ${content.length} characters');
+      
+      final chapters = _parseDocumentContent(content);
+      print('✅ Parsed ${chapters.length} chapters');
+      
+      _bookCache[fileName] = chapters;
+      return chapters;
     } catch (e) {
-      directory = await getApplicationDocumentsDirectory();
-      print('📁 Fallback to app documents directory: ${directory.path}');
+      print('❌ File not found in assets: assets/bible_docs/$fileName');
+      return {1: 'This book isn\'t available yet'};
     }
-    
-    final bibleDocsPath = directory!.path.endsWith('Holy_bible') 
-        ? directory.path 
-        : '${directory.path}/Holy_bible';
-    
-    final bibleDocsDir = Directory(bibleDocsPath);
-    if (!await bibleDocsDir.exists()) {
-      await bibleDocsDir.create(recursive: true);
-      print('📂 Created directory: $bibleDocsPath');
-    }
-    
-    print('🎯 Final Bible docs path: $bibleDocsPath');
-    return bibleDocsPath;
+  }
+
+  static Future<String> getBibleDocsPath() async {
+    return 'assets/bible_docs';
   }
 
   static String _getFileNotFoundMessage(Map<String, dynamic> book, String fileName) {
@@ -569,32 +426,16 @@ static Future<String> getChapterFootnotes(int bookIndex, int chapterNumber) asyn
 }
 
 // Add this NEW method right after getChapterFootnotes
-static Future<Map<int, String>> _loadAndCacheFootnotes(String fileName) async {
-  String? content;
-  bool foundContent = false;
-
-  if (!kIsWeb) {
-    final bibleDocsPath = await getBibleDocsPath();
-    final externalFile = File('$bibleDocsPath/$fileName');
-    if (await externalFile.exists()) {
-      content = await externalFile.readAsString();
-      foundContent = true;
-    }
-  }
-
-  if (!foundContent) {
+  static Future<Map<int, String>> _loadAndCacheFootnotes(String fileName) async {
     try {
-      content = await rootBundle.loadString('assets/bible_docs/$fileName');
-      foundContent = true;
+      final content = await rootBundle.loadString('assets/bible_docs/$fileName');
+      final chapters = _parseDocumentContent(content!, formatVerses: false);
+      _footnotesCache[fileName] = chapters;
+      return chapters;
     } catch (e) {
       return {};
     }
   }
-
-  final chapters = _parseDocumentContent(content!, formatVerses: false);
-  _footnotesCache[fileName] = chapters;
-  return chapters;
-}
 
   static String _formatVerses(String content) {
     String formatted = content;

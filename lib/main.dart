@@ -7,15 +7,20 @@ import 'theme_provider.dart';
 import 'app_open_ad_manager.dart';
 
 final AppOpenAdManager appOpenAdManager = AppOpenAdManager();
+final AppLifecycleReactor appLifecycleReactor = AppLifecycleReactor(
+  appOpenAdManager: appOpenAdManager,
+);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  await MobileAds.instance.initialize();
-
-  // Load the app open ad as early as possible
-  appOpenAdManager.loadAd();
-
+  try {
+    await MobileAds.instance.initialize();
+    print('✅ MobileAds initialized');
+    appOpenAdManager.loadAd();
+    appLifecycleReactor.listenToAppStateChanges();
+  } catch (e) {
+    print('❌ AdMob initialization failed: $e');
+  }
   runApp(
     ChangeNotifierProvider(
       create: (_) => ThemeProvider(),

@@ -1,9 +1,0 @@
-1. old testament only finished
-2. needs improvments
-  1. highlights
-  2. advanced search
-3. samuel 1, crashes
-4. english vs arabic
-5. allow files
-
-don't press access files

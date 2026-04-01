@@ -1,4 +1,3 @@
-test
 
 keystore: HolyBible@Ivraym2025
 
