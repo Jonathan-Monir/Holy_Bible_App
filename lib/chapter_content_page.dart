@@ -60,16 +60,12 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
 
   // NEW - Add this instead:
   final Map<int, GlobalKey> _verseKeys = {};  // Keep for verse scrolling (int key for verse number)
-  final Map<String, GlobalKey> _uniqueVerseKeys = {};  // NEW: For unique widget instances (string key for uniqueness)
+  final Map<String, GlobalKey> _uniqueVerseKeys = {};
   Map<int, TextRange> verseTextRanges = {};
   late ScrollController _scrollController;
 
-  // ADD THESE NEW LINES:
-  final Map<int, GlobalKey> _verseNumberKeys = {};
   final Map<String, GlobalKey> _footnoteNumberKeys = {};  // For inline footnote numbers in verses
   final Map<int, GlobalKey> _footnoteKeys = {};  // For footnote section at bottom
-  bool _isSwappingPositions = false;
-  Size? _lastKnownSize;
 
   @override
   void dispose() {
@@ -96,29 +92,12 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
           print('🟣 CHAPTER_PAGE: Loading chapter content...');
           _loadChapterContent();
           
-          print('🟣 CHAPTER_PAGE: Scheduling orientation listener...');
-          _scheduleOrientationListener();
         } else {
           print('🟣 CHAPTER_PAGE: NOT MOUNTED in post-frame callback');
         }
       });
-      
-      print('🟣 CHAPTER_PAGE: initState completed');
-  }
 
-  void _scheduleOrientationListener() {
-    // This will detect when the widget rebuilds due to orientation change
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        final newSize = MediaQuery.of(context).size;
-        if (_lastKnownSize != null && _lastKnownSize != newSize) {
-          _resetAllVerseOffsets();
-          _schedulePositionSwapping();
-        }
-        _lastKnownSize = newSize;
-        _scheduleOrientationListener(); // Keep listening
-      }
-    });
+      print('🟣 CHAPTER_PAGE: initState completed');
   }
 
   @override
@@ -131,12 +110,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       _loadChapterContent();
     }
     
-    // Reset and recalculate positions if fontSize or fontFamily changed
-    if (oldWidget.fontSize != widget.fontSize || 
-        oldWidget.fontFamily != widget.fontFamily) {
-      _resetAllVerseOffsets();
-      _schedulePositionSwapping();
-    }
+    // No action needed for fontSize/fontFamily changes — text layout handles it
   }
 
   String get _chapterKey => '${widget.bookIndex}_${widget.chapterNumber}';
@@ -366,15 +340,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
           isLoading = false;
         });
 
-        // print('✅ DONE: Chapter loaded successfully');
         _debugVersePositions();
-
-        // Schedule swapping after build completes
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            _swapVerseNumberPositions();
-          }
-        });
       }
     } catch (e, stackTrace) {
       print('❌ ERROR loading chapter: $e');
@@ -511,20 +477,21 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   }
 
   Map<int, TextRange> _computeVerseTextRanges(List<VerseData> verses, bool removeDiacritics) {
-    // print('🔧 COMPUTE VERSE TEXT RANGES: Starting...');
-    
+    print('🔧 COMPUTE VERSE TEXT RANGES: Starting...');
+
     Map<int, TextRange> ranges = {};
     int offset = 0;
-    
+
     for (int i = 0; i < verses.length; i++) {
       VerseData verse = verses[i];
-      
+
       if (verse.number == 0) {
-        // Chapter heading
-        String displayText = removeDiacritics ? BibleData.removeTashkeel(verse.text) : verse.text;
-        // print('   Chapter heading: offset=$offset, length=${displayText.length}');
-        offset += displayText.length;
-        offset += 2; // \n\n
+        // FIX: Skip verse 0 (chapter headings) — they are NOT rendered in
+        // _buildAllVersesWidget, so they must NOT contribute to the offset.
+        // Previously this added displayText.length + 2 to offset, which shifted
+        // all subsequent verse ranges forward and caused highlights to land on
+        // earlier text than what the user actually selected.
+        print('🔧 VERSE RANGES: Skipping verse 0 (heading): "${verse.text.substring(0, verse.text.length.clamp(0, 50))}"');
         continue;
       }
       
@@ -554,17 +521,17 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       // CRITICAL: The range should match what EditableText sees (WITH widgets)
       // So we keep the offset in the "editable" coordinate system
       ranges[verse.number] = TextRange(start: start, end: offset + displayedLength);
-      
-      // print('   Verse ${verse.number}: range $start to ${offset + displayedLength} (widgets: 1 verse + ${footnoteMatches.length} footnotes)');
-      
+
+      print('🔧 VERSE RANGES: V${verse.number}: range $start-${offset + displayedLength}, textLen=${processedText.length}, displayLen=$displayedLength, footnotes=${footnoteMatches.length}');
+
       offset += displayedLength;
-      
+
       if (i < verses.length - 1) {
         offset += 1; // ' ' between verses
       }
     }
-    
-    // print('🔧 COMPUTE VERSE TEXT RANGES: Complete, ${ranges.length} ranges');
+
+    print('🔧 COMPUTE VERSE TEXT RANGES: Complete, ${ranges.length} ranges, final offset=$offset');
     return ranges;
   }
 
@@ -699,24 +666,26 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         // CRITICAL FIX: Create a unique GlobalKey for each verse number widget instance
         final verseNumberKey = GlobalKey();  // ← Always create a new unique key
 
+        // FIX: Removed Directionality(textDirection: TextDirection.ltr) wrapper.
+        // Digits already render left-to-right in RTL context (Unicode BiDi rule).
+        // The LTR wrapper was causing verse numbers on the same line to swap
+        // positions due to BiDi reordering. Footnote numbers (which never had
+        // this wrapper) didn't have the problem.
         allSpans.add(WidgetSpan(
           alignment: PlaceholderAlignment.baseline,
           baseline: TextBaseline.alphabetic,
-          child: Directionality(
-            textDirection: TextDirection.ltr,
-            child: _VerseNumberWidget(
-              key: verseNumberKey,
-              verseKey: verseKey,
-              verseNumText: verseNumText,
-              fontSize: widget.fontSize,
-              fontFamily: isArabic ? widget.fontFamily : 'serif',
-              color: themeProvider.verseNumberColor,
-              isHighlighted: verseNumHighlighted,
-              isUnderlined: verseNumUnderlined,
-              primaryColor: Theme.of(context).primaryColor,
-              highlightColor: _highlightColor,  // ADD THIS
-              underlineColor: _underlineColor,  // ADD THIS
-            ),
+          child: _VerseNumberWidget(
+            key: verseNumberKey,
+            verseKey: verseKey,
+            verseNumText: verseNumText,
+            fontSize: widget.fontSize,
+            fontFamily: isArabic ? widget.fontFamily : 'serif',
+            color: themeProvider.verseNumberColor,
+            isHighlighted: verseNumHighlighted,
+            isUnderlined: verseNumUnderlined,
+            primaryColor: Theme.of(context).primaryColor,
+            highlightColor: _highlightColor,
+            underlineColor: _underlineColor,
           ),
         ));
                         
@@ -749,30 +718,25 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     final TextEditingValue value = editableTextState.textEditingValue;
     final TextSelection editableSelection = value.selection;
     
-    // DEBUG: Compare texts
-    // _debugTextComparison(value.text);
-    
-    // print('🎯 CONTEXT MENU: Chapter ${widget.bookIndex}-${widget.chapterNumber}');
-    // print('🎯 SELECTION from EditableText: ${editableSelection.start} to ${editableSelection.end}');
-    // print('   verseTextRanges has ${verseTextRanges.length} entries');
-    // print('   First 3 verse numbers: ${verseTextRanges.keys.take(3).toList()}');
-    
+    print('🎯 CONTEXT MENU: Chapter ${widget.bookIndex}-${widget.chapterNumber}');
+    print('🎯 SELECTION from EditableText: ${editableSelection.start} to ${editableSelection.end}');
+    print('   verseTextRanges has ${verseTextRanges.length} entries');
+
     if (!editableSelection.isValid || editableSelection.isCollapsed) {
       return const SizedBox.shrink();
     }
-    
+
     final String selectedText = value.text.substring(editableSelection.start, editableSelection.end);
-    // print("edddd ${editableSelection.start}, ${editableSelection.end}");
-    // print('FULL TEXT LENGTH: ${value.text.length}');
-    // print('   Selected text: "$selectedText"');
-    // print('   Selected text (first 50 chars): "${selectedText.substring(0, selectedText.length.clamp(0, 50))}"');
-    
+    print('🎯 CONTEXT MENU: selectedText="${selectedText.substring(0, selectedText.length.clamp(0, 80))}"');
+    print('🎯 CONTEXT MENU: fullText length=${value.text.length}');
+
     // Detect verse using precomputed ranges
     int? detectedVerseNumber;
     for (final entry in verseTextRanges.entries) {
       final range = entry.value;
       if (editableSelection.start >= range.start && editableSelection.start < range.end) {
         detectedVerseNumber = entry.key;
+        print('🎯 CONTEXT MENU: detected verse $detectedVerseNumber (range ${range.start}-${range.end})');
         break;
       }
     }
@@ -864,62 +828,77 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   }
 
   void _handleVerseHighlight(String fullText, TextSelection selection, int firstDetectedVerse, bool isArabic) {
-    // print('🎯 HIGHLIGHT: sel=${selection.start}-${selection.end}');
-    
+    print('🎯 HIGHLIGHT: sel=${selection.start}-${selection.end}, firstVerse=$firstDetectedVerse');
+
     if (selection.isCollapsed) return;
-    
+
     // Get all verses that the selection spans (using editable coordinates)
     List<int> spannedVerses = _getSpannedVerses(selection);
+    print('🎯 HIGHLIGHT: spannedVerses=$spannedVerses');
     if (spannedVerses.isEmpty) return;
-    
+
+    // Extract the actual selected text from the EditableText for verification
+    final int selStart = selection.start.clamp(0, fullText.length);
+    final int selEnd = selection.end.clamp(selStart, fullText.length);
+    final String actualSelectedText = fullText.substring(selStart, selEnd);
+    print('🎯 HIGHLIGHT: actualSelectedText="${actualSelectedText.substring(0, actualSelectedText.length.clamp(0, 80))}"');
+
     setState(() {
       if (!highlightedRanges.containsKey(_chapterKey)) {
         highlightedRanges[_chapterKey] = {};
       }
-      
+
       for (int verseNum in spannedVerses) {
         if (!verseTextRanges.containsKey(verseNum)) continue;
-        
+
         TextRange verseRange = verseTextRanges[verseNum]!;
-        
+
         // Calculate global selection boundaries within this verse (in editable coordinates)
         int globalHighlightStart = max(selection.start, verseRange.start);
         int globalHighlightEnd = min(selection.end, verseRange.end);
-        
+
         // Get the verse text (with original [N] brackets)
         final verse = verses.firstWhere((v) => v.number == verseNum);
         String verseText = widget.removeDiacritics ? BibleData.removeTashkeel(verse.text) : verse.text;
-        
+
         // Convert to local position within verse text
         // verseRange.start points to the verse number widget
         // verseRange.start + 1 is where the actual text begins
         int localHighlightStart = globalHighlightStart - (verseRange.start + 1);
         int localHighlightEnd = globalHighlightEnd - (verseRange.start + 1);
-        
+
         // Calculate displayed length (footnotes as widgets)
         RegExp footnotePattern = RegExp(r'\[(\d+)\]');
         int displayedLength = verseText.length;
         for (Match match in footnotePattern.allMatches(verseText)) {
           displayedLength -= (match.group(0)!.length - 1); // [N] becomes single widget
         }
-        
+
         // Clamp to displayed length
         localHighlightStart = localHighlightStart.clamp(0, displayedLength);
         localHighlightEnd = localHighlightEnd.clamp(localHighlightStart, displayedLength);
-        
+
         // Convert from displayed coordinates to original text coordinates (with brackets)
         int originalStart = _displayPosToOriginalPos(localHighlightStart, verseText);
         int originalEnd = _displayPosToOriginalPos(localHighlightEnd, verseText);
-        
-        // print('   V$verseNum: display=$localHighlightStart-$localHighlightEnd, original=$originalStart-$originalEnd, text="${verseText.substring(originalStart, min(originalEnd, originalStart + 30))}..."');
-        
+
+        // Debug: show exactly what text will be highlighted
+        final int safeOrigStart = originalStart.clamp(0, verseText.length);
+        final int safeOrigEnd = originalEnd.clamp(safeOrigStart, verseText.length);
+        final String highlightedText = verseText.substring(safeOrigStart, safeOrigEnd);
+        print('🎯 HIGHLIGHT V$verseNum: verseRange=${verseRange.start}-${verseRange.end}, '
+            'global=$globalHighlightStart-$globalHighlightEnd, '
+            'local=$localHighlightStart-$localHighlightEnd, '
+            'original=$originalStart-$originalEnd, '
+            'text="$highlightedText"');
+
         if (originalStart < originalEnd) {
           TextRange highlightRange = TextRange(start: originalStart, end: originalEnd);
-          
+
           if (!highlightedRanges[_chapterKey]!.containsKey(verseNum)) {
             highlightedRanges[_chapterKey]![verseNum] = [];
           }
-          
+
           highlightedRanges[_chapterKey]![verseNum] = _toggleRange(
             highlightedRanges[_chapterKey]![verseNum]!,
             highlightRange
@@ -927,54 +906,71 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         }
       }
     });
-    
+
     _saveHighlightedRanges();
   }
 
   void _handleVerseUnderline(String fullText, TextSelection selection, int firstDetectedVerse, bool isArabic) {
+    print('📏 UNDERLINE: sel=${selection.start}-${selection.end}, firstVerse=$firstDetectedVerse');
+
     if (selection.isCollapsed) return;
-    
+
     List<int> spannedVerses = _getSpannedVerses(selection);
+    print('📏 UNDERLINE: spannedVerses=$spannedVerses');
     if (spannedVerses.isEmpty) return;
-    
+
+    final int selStart = selection.start.clamp(0, fullText.length);
+    final int selEnd = selection.end.clamp(selStart, fullText.length);
+    final String actualSelectedText = fullText.substring(selStart, selEnd);
+    print('📏 UNDERLINE: actualSelectedText="${actualSelectedText.substring(0, actualSelectedText.length.clamp(0, 80))}"');
+
     setState(() {
       if (!underlinedRanges.containsKey(_chapterKey)) {
         underlinedRanges[_chapterKey] = {};
       }
-      
+
       for (int verseNum in spannedVerses) {
         if (!verseTextRanges.containsKey(verseNum)) continue;
-        
+
         TextRange verseRange = verseTextRanges[verseNum]!;
-        
+
         int globalUnderlineStart = max(selection.start, verseRange.start);
         int globalUnderlineEnd = min(selection.end, verseRange.end);
-        
+
         final verse = verses.firstWhere((v) => v.number == verseNum);
         String verseText = widget.removeDiacritics ? BibleData.removeTashkeel(verse.text) : verse.text;
-        
+
         int localUnderlineStart = globalUnderlineStart - (verseRange.start + 1);
         int localUnderlineEnd = globalUnderlineEnd - (verseRange.start + 1);
-        
+
         RegExp footnotePattern = RegExp(r'\[(\d+)\]');
         int displayedLength = verseText.length;
         for (Match match in footnotePattern.allMatches(verseText)) {
           displayedLength -= (match.group(0)!.length - 1);
         }
-        
+
         localUnderlineStart = localUnderlineStart.clamp(0, displayedLength);
         localUnderlineEnd = localUnderlineEnd.clamp(localUnderlineStart, displayedLength);
-        
+
         int originalStart = _displayPosToOriginalPos(localUnderlineStart, verseText);
         int originalEnd = _displayPosToOriginalPos(localUnderlineEnd, verseText);
-        
+
+        final int safeOrigStart = originalStart.clamp(0, verseText.length);
+        final int safeOrigEnd = originalEnd.clamp(safeOrigStart, verseText.length);
+        final String underlinedText = verseText.substring(safeOrigStart, safeOrigEnd);
+        print('📏 UNDERLINE V$verseNum: verseRange=${verseRange.start}-${verseRange.end}, '
+            'global=$globalUnderlineStart-$globalUnderlineEnd, '
+            'local=$localUnderlineStart-$localUnderlineEnd, '
+            'original=$originalStart-$originalEnd, '
+            'text="$underlinedText"');
+
         if (originalStart < originalEnd) {
           TextRange underlineRange = TextRange(start: originalStart, end: originalEnd);
-          
+
           if (!underlinedRanges[_chapterKey]!.containsKey(verseNum)) {
             underlinedRanges[_chapterKey]![verseNum] = [];
           }
-          
+
           underlinedRanges[_chapterKey]![verseNum] = _toggleRange(
             underlinedRanges[_chapterKey]![verseNum]!,
             underlineRange
@@ -982,7 +978,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         }
       }
     });
-    
+
     _saveUnderlinedRanges();
   }
 
@@ -990,33 +986,39 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   int _displayPosToOriginalPos(int displayPos, String originalText) {
     RegExp footnotePattern = RegExp(r'\[(\d+)\]');
     List<Match> matches = footnotePattern.allMatches(originalText).toList();
-    
+
     int originalPos = displayPos;
     int currentDisplayPos = 0;
     int currentOriginalPos = 0;
-    
+
     for (Match match in matches) {
       int bracketStart = match.start;
       int bracketLength = match.group(0)!.length;
-      
+
       // Add the text before this bracket
       int textBeforeBracket = bracketStart - currentOriginalPos;
-      
+
       if (currentDisplayPos + textBeforeBracket >= displayPos) {
         // The target position is before this bracket
+        print('🔧 DISPLAY→ORIG: displayPos=$displayPos → originalPos=$originalPos (before bracket at $bracketStart)');
         return originalPos;
       }
-      
+
       currentDisplayPos += textBeforeBracket;
       currentOriginalPos = bracketStart + bracketLength;
-      
+
       // The bracket becomes 1 widget character in display
+      // FIX: Each [N] bracket (length bracketLength) maps to 1 display char.
+      // The shift in original coords is (bracketLength - 1), NOT bracketLength.
+      // Previously this added the full bracketLength, which over-shifted positions
+      // for any verse containing footnotes.
       if (currentDisplayPos < displayPos) {
         currentDisplayPos += 1;
-        originalPos += bracketLength; // Add the full bracket length to original position
+        originalPos += (bracketLength - 1);
       }
     }
-    
+
+    print('🔧 DISPLAY→ORIG: displayPos=$displayPos → originalPos=$originalPos (final, ${matches.length} footnotes)');
     return originalPos;
   }
 
@@ -1029,9 +1031,7 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       VerseData verse = verses[i];
       
       if (verse.number == 0) {
-        String displayText = widget.removeDiacritics ? BibleData.removeTashkeel(verse.text) : verse.text;
-        // print('📍 Chapter heading at $currentPos: length=${displayText.length}');
-        currentPos += displayText.length + 2; // +2 for \n\n
+        // FIX: Skip verse 0 — matches _buildAllVersesWidget and _computeVerseTextRanges
         continue;
       }
       
@@ -1483,198 +1483,6 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
     );
   }
 
-  void _schedulePositionSwapping() {
-    if (!mounted) return;
-    
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _swapVerseNumberPositions();
-      }
-    });
-  }
-
-  void _swapVerseNumberPositions() {
-    print('🔄 SWAP: Starting position swap...');
-    
-    if (!mounted) {
-      print('🔄 SWAP: Not mounted, exiting');
-      return;
-    }
-
-    // Reset all offsets first
-    _resetAllVerseOffsets();
-
-    try {
-      print('🔄 SWAP: Collecting verse number positions...');
-      print('🔄 SWAP: _uniqueVerseKeys has ${_uniqueVerseKeys.length} entries');
-      print('🔄 SWAP: _footnoteNumberKeys has ${_footnoteNumberKeys.length} entries');
-      
-      int validContexts = 0;
-      int nullContexts = 0;
-
-      // Collect ALL verse number widgets (now each has unique GlobalKey)
-      List<_VersePosition> allPositions = [];
-
-      for (var entry in _uniqueVerseKeys.entries) {
-        final uniqueId = entry.key;  // This is "verseNumber_index"
-        final key = entry.value;
-        final context = key.currentContext;
-        
-        if (context == null) {
-          nullContexts++;
-          continue;
-        }
-        
-        validContexts++;
-        
-        final renderBox = context.findRenderObject() as RenderBox?;
-        
-        if (renderBox == null || !renderBox.hasSize) {
-          continue;
-        }
-        
-        final position = renderBox.localToGlobal(Offset.zero);
-        
-        // Extract verse number from uniqueId (format: "verseNumber_index")
-        int verseNumber = int.parse(uniqueId.split('_')[0]);
-        
-        allPositions.add(_VersePosition(
-          verseNumber: verseNumber,
-          xPosition: position.dx,
-          yPosition: position.dy,
-          key: key,
-        ));
-      }
-
-      // Add footnote number positions
-      for (var entry in _footnoteNumberKeys.entries) {
-        final footnoteKeyId = entry.key;
-        final key = entry.value;
-        final context = key.currentContext;
-        
-        if (context == null) continue;
-        
-        final renderBox = context.findRenderObject() as RenderBox?;
-        
-        if (renderBox != null && renderBox.hasSize) {
-          final position = renderBox.localToGlobal(Offset.zero);
-          
-          // Use hash code as unique identifier (won't conflict with positive verse numbers)
-          allPositions.add(_VersePosition(
-            verseNumber: -footnoteKeyId.hashCode,
-            xPosition: position.dx,
-            yPosition: position.dy,
-            key: key,
-          ));
-        }
-      }
-
-      // Group by Y position (same line)
-      Map<double, List<_VersePosition>> lineGroups = {};
-      for (var pos in allPositions) {
-        final yPos = (pos.yPosition / 10).round() * 10.0;
-        if (!lineGroups.containsKey(yPos)) {
-          lineGroups[yPos] = [];
-        }
-        lineGroups[yPos]!.add(pos);
-      }
-      
-      // For each line with multiple verse numbers, swap them
-      int lineIndex = 0;
-      for (var entry in lineGroups.entries) {
-        final yPos = entry.key;
-        final positions = entry.value;
-        lineIndex++;
-        
-        
-        if (positions.length > 1) {
-          // Sort by X position
-          positions.sort((a, b) => a.xPosition.compareTo(b.xPosition));
-          
-          
-          // Apply swapping by reversing the list
-          for (int i = 0; i < positions.length; i++) {
-            final currentPos = positions[i];
-            final targetIndex = positions.length - 1 - i;
-            final targetPos = positions[targetIndex];
-            
-            
-            final context = currentPos.key.currentContext;
-            if (context != null) {
-              // Try to get the state directly from the StatefulElement
-              final element = context as StatefulElement?;
-              final offsetX = targetPos.xPosition - currentPos.xPosition;
-
-              // Handle both verse numbers (positive) and footnote numbers (negative)
-              if (currentPos.verseNumber > 0) {
-                // Verse number
-                final state = element?.state as _VerseNumberWidgetState?;
-                if (state != null) {
-                  state.updateOffset(offsetX);
-                } else {
-                }
-              } else {
-                // Footnote number (negative verseNumber)
-                final state = element?.state as _FootnoteNumberWidgetState?;
-                if (state != null) {
-                  state.updateOffset(offsetX);
-                } else {
-                }
-              }
-            } else {
-            }
-          }
-          
-        } else {
-        }
-      }
-      
-    } catch (e, stackTrace) {
-    } finally {
-      if (mounted) {
-        // Force a rebuild to apply all the transforms
-        setState(() {
-          _isSwappingPositions = false;
-        });
-        
-        // Schedule another frame to ensure transforms are applied
-        SchedulerBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            setState(() {
-              // Empty setState to force rebuild with new offsets
-            });
-          }
-        });
-      }
-    }
-  }
-
-  void _resetAllVerseOffsets() {
-    
-    for (var entry in _verseNumberKeys.entries) {
-      final context = entry.value.currentContext;
-      if (context != null) {
-        final element = context as StatefulElement?;
-        final state = element?.state as _VerseNumberWidgetState?;
-        
-        if (state != null) {
-          state.updateOffset(0.0);
-        }
-      }
-    }
-
-    for (var entry in _footnoteNumberKeys.entries) {
-      final context = entry.value.currentContext;
-      if (context != null) {
-        final element = context as StatefulElement?;
-        final state = element?.state as _FootnoteNumberWidgetState?;
-        
-        if (state != null) {
-          state.updateOffset(0.0);
-        }
-      }
-    }
-  }
 }
 
 class VerseData {
@@ -1690,19 +1498,6 @@ class VerseData {
 }
 
 
-class _VersePosition {
-  final int verseNumber;
-  final double xPosition;
-  final double yPosition;  // ← Add this
-  final GlobalKey key;
-  
-  _VersePosition({
-    required this.verseNumber,
-    required this.xPosition,
-    required this.yPosition,  // ← Add this
-    required this.key,
-  });
-}
 
 class _VerseNumberWidget extends StatefulWidget {
   final GlobalKey verseKey;
@@ -1763,144 +1558,54 @@ class _FootnoteNumberWidget extends StatefulWidget {
 }
 
 class _FootnoteNumberWidgetState extends State<_FootnoteNumberWidget> {
-  double _offsetX = 0.0;
-  
-  // Add this static method
-  static Color _getContrastingTextColorStatic(Color backgroundColor) {
-    double luminance = (0.299 * backgroundColor.red + 
-                        0.587 * backgroundColor.green + 
-                        0.114 * backgroundColor.blue) / 255;
-    return luminance > 0.5 ? Colors.black : Colors.white;
-  }
-  
-  
-  void updateOffset(double newOffset) {
-    if (_offsetX != newOffset) {
-      setState(() {
-        _offsetX = newOffset;
-      });
-    }
-  }
-  
   @override
   Widget build(BuildContext context) {
+    // FIX: Use a single Text widget with backgroundColor in TextStyle instead
+    // of wrapping in a Container with padding. Same fix as verse numbers —
+    // keeps widget size stable across highlighted/non-highlighted states.
     return GestureDetector(
       onTap: widget.onTap,
       behavior: HitTestBehavior.translucent,
-      child: Transform.translate(
-        offset: Offset(_offsetX, 0),
-        transformHitTests: false,
-        child: widget.isHighlighted
-            ? Container(
-                padding: const EdgeInsets.only(
-                  left: 3.0,
-                  right: 0.0,
-                  top: 5,
-                  bottom: 3,
-                ),
-                decoration: BoxDecoration(
-                  color: widget.highlightColor,
-                  borderRadius: BorderRadius.circular(0),
-                ),
-                child: Text(
-                  '\u2066${widget.footnoteNum}\u2069',
-                  style: TextStyle(
-                    fontSize: widget.fontSize * 0.65,
-                    fontWeight: FontWeight.bold,
-                    color: widget.color,  // ← Use the original color when NOT highlighted
-                    fontFeatures: const [FontFeature.superscripts()],
-                    height: 1.8,
-                    decoration: widget.isUnderlined ? TextDecoration.underline : null,
-                    decorationColor: widget.underlineColor,
-                    decorationThickness: 2,
-                  ),
-                ),
-              )
-            : Text(
-                '\u2066${widget.footnoteNum}\u2069',
-                style: TextStyle(
-                  fontSize: widget.fontSize * 0.65,
-                  fontWeight: FontWeight.bold,
-                  color: widget.color,  // ← Use the original color when NOT highlighted
-                  fontFeatures: const [FontFeature.superscripts()],
-                  height: 1.8,
-                  decoration: widget.isUnderlined ? TextDecoration.underline : null,
-                  decorationColor: widget.underlineColor,
-                  decorationThickness: 2,
-                ),
-              ),
+      child: Text(
+        '\u2066${widget.footnoteNum}\u2069',
+        style: TextStyle(
+          fontSize: widget.fontSize * 0.65,
+          fontWeight: FontWeight.bold,
+          color: widget.color,
+          fontFeatures: const [FontFeature.superscripts()],
+          height: 1.8,
+          backgroundColor: widget.isHighlighted ? widget.highlightColor : null,
+          decoration: widget.isUnderlined ? TextDecoration.underline : null,
+          decorationColor: widget.isUnderlined ? widget.underlineColor : widget.primaryColor,
+          decorationThickness: 2,
+        ),
       ),
     );
   }
 }
 
 class _VerseNumberWidgetState extends State<_VerseNumberWidget> {
-  double _offsetX = 0.0;  // Move offset to STATE
-  
-  // Add this static method
-  static Color _getContrastingTextColorStatic(Color backgroundColor) {
-    double luminance = (0.299 * backgroundColor.red + 
-                        0.587 * backgroundColor.green + 
-                        0.114 * backgroundColor.blue) / 255;
-    return luminance > 0.5 ? Colors.black : Colors.white;
-  }
-  
-  void updateOffset(double newOffset) {
-    if (_offsetX != newOffset) {
-      setState(() {
-        _offsetX = newOffset;
-      });
-    }
-  }
-  
   @override
   Widget build(BuildContext context) {
-    return Transform.translate(
-      offset: Offset(_offsetX, 0),
-      transformHitTests: true,
-      child: widget.isHighlighted
-          ? Container(
-              padding: const EdgeInsets.only(
-                left: 0,
-                right: 0,
-                top: 3.8,
-                bottom: 2,
-              ),
-              decoration: BoxDecoration(
-                color: widget.highlightColor,
-                borderRadius: BorderRadius.circular(0),
-              ),
-              child: Text(
-                widget.verseNumText,
-                key: widget.verseKey,
-                style: TextStyle(
-                  fontSize: widget.fontSize * 0.8,
-                  fontWeight: FontWeight.bold,
-      color: widget.color,  // ← Use the original color when NOT highlighted
-                  fontFamily: widget.fontFamily,
-                  letterSpacing: 0.5,
-                  height: 1.8,
-                  decoration: widget.isUnderlined ? TextDecoration.underline : null,
-                  decorationColor: widget.underlineColor,
-                  decorationThickness: 2,
-                ),
-              ),
-            )
-          : Text(
-              widget.verseNumText,
-              key: widget.verseKey,
-              style: TextStyle(
-                fontSize: widget.fontSize * 0.8,
-                fontWeight: FontWeight.bold,
-                color: widget.color,  // ← Use the original color when NOT highlighted
-                fontFamily: widget.fontFamily,
-                letterSpacing: 0.5,
-                height: 1.8,
-                decoration: widget.isUnderlined ? TextDecoration.underline : null,
-                decorationColor: widget.primaryColor,
-                decorationThickness: 2,
-              ),
-            ),
+    // FIX: Use a single Text widget for both highlighted and non-highlighted
+    // states, applying backgroundColor via TextStyle instead of wrapping in a
+    // Container with padding. The Container approach changed the widget's size,
+    // causing highlight height to shrink and underlines to shift up.
+    return Text(
+      widget.verseNumText,
+      key: widget.verseKey,
+      style: TextStyle(
+        fontSize: widget.fontSize * 0.8,
+        fontWeight: FontWeight.bold,
+        color: widget.color,
+        fontFamily: widget.fontFamily,
+        letterSpacing: 0.5,
+        height: 1.8,
+        backgroundColor: widget.isHighlighted ? widget.highlightColor : null,
+        decoration: widget.isUnderlined ? TextDecoration.underline : null,
+        decorationColor: widget.isUnderlined ? widget.underlineColor : widget.primaryColor,
+        decorationThickness: 2,
+      ),
     );
   }
 }
