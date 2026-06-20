@@ -58,17 +58,17 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   String footnotes = '';
   final GlobalKey _footnotesKey = GlobalKey();
 
-  // NEW - Add this instead:
-  final Map<int, GlobalKey> _verseKeys = {};  // Keep for verse scrolling (int key for verse number)
-  final Map<String, GlobalKey> _uniqueVerseKeys = {};
   Map<int, TextRange> verseTextRanges = {};
   late ScrollController _scrollController;
 
-  final Map<String, GlobalKey> _footnoteNumberKeys = {};  // For inline footnote numbers in verses
   final Map<int, GlobalKey> _footnoteKeys = {};  // For footnote section at bottom
+  List<TapGestureRecognizer> _footnoteRecognizers = [];
 
   @override
   void dispose() {
+    for (var r in _footnoteRecognizers) {
+      r.dispose();
+    }
     _scrollController.dispose();
     super.dispose();
   }
@@ -465,15 +465,27 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
   }
 
   void _scrollToVerse(int verseNumber) {
-    final key = _verseKeys[verseNumber];
-    if (key?.currentContext != null) {
-      Scrollable.ensureVisible(
-        key!.currentContext!,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-        alignment: 0.2,
-      );
-    }
+    if (verses.isEmpty || !_scrollController.hasClients) return;
+
+    final range = verseTextRanges[verseNumber];
+    if (range == null) return;
+
+    // Estimate scroll position from character offset proportion
+    final lastEntry = verseTextRanges.entries.last;
+    final totalTextLength = lastEntry.value.end;
+    if (totalTextLength == 0) return;
+
+    final proportion = range.start / totalTextLength;
+    final maxScroll = _scrollController.position.maxScrollExtent;
+
+    // Verses occupy roughly the top portion of scrollable area (footnotes below)
+    final estimatedOffset = proportion * maxScroll * 0.8;
+
+    _scrollController.animateTo(
+      estimatedOffset.clamp(0.0, maxScroll),
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
   }
 
   Map<int, TextRange> _computeVerseTextRanges(List<VerseData> verses, bool removeDiacritics) {
@@ -495,27 +507,29 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         continue;
       }
       
-      // Account for WidgetSpan verse number (1 character: U+FFFC)
-      int start = offset;  // Start at the WidgetSpan
-      offset += 1;  // The WidgetSpan itself
-      
+      // Account for verse number TextSpan (e.g. "1 " = 2 chars, "10 " = 3 chars)
+      String verseNumText = '${verse.number} ';
+      int start = offset;
+      offset += verseNumText.length;
+
       // Process the verse text to count footnotes
       String verseText = verse.text;
       String processedText = removeDiacritics ? BibleData.removeTashkeel(verseText) : verseText;
-      
+
       // Count footnote markers in the original text
       RegExp footnotePattern = RegExp(r'\[(\d+)\]');
       List<Match> footnoteMatches = footnotePattern.allMatches(processedText).toList();
-      
+
       // Calculate actual displayed length:
       // Start with the processed text length
       int displayedLength = processedText.length;
-      
-      // Each [N] in text becomes a WidgetSpan (1 char: U+FFFC)
-      // So we subtract the bracket length [1] = 3 chars, and add 1 for the widget
+
+      // Each [N] in text becomes a TextSpan with just the digits
+      // So we subtract the bracket length [1] = 3 chars, and add the digit count
       for (Match match in footnoteMatches) {
         int bracketLength = match.group(0)!.length; // "[1]" = 3, "[12]" = 4, etc.
-        displayedLength = displayedLength - bracketLength + 1; // Replace with 1 widget char
+        int footnoteDigits = match.group(1)!.length; // "1" = 1, "12" = 2, etc.
+        displayedLength = displayedLength - bracketLength + footnoteDigits;
       }
       
       // CRITICAL: The range should match what EditableText sees (WITH widgets)
@@ -631,31 +645,21 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
 
   Widget _buildAllVersesWidget(List<VerseData> verses, bool isArabic) {
     final themeProvider = Provider.of<ThemeProvider>(context);
-    
+
+    // Dispose old recognizers before rebuilding spans
+    for (var r in _footnoteRecognizers) {
+      r.dispose();
+    }
+    _footnoteRecognizers.clear();
+
     List<InlineSpan> allSpans = [];
-    
+
     for (int i = 0; i < verses.length; i++) {
       VerseData verse = verses[i];
-      
+
       if (verse.number == 0) {
-        // Skip chapter headings - they're already shown in the page title
-        // This handles both manually numbered chapters and auto-numbered ones
         continue;
       } else {
-        // Create unique identifiers using both verse number AND index
-        final uniqueKeyIdentifier = '${verse.number}_$i';
-        if (!_uniqueVerseKeys.containsKey(uniqueKeyIdentifier)) {
-          _uniqueVerseKeys[uniqueKeyIdentifier] = GlobalKey();
-        }
-        
-        // CRITICAL FIX: Use index-based key for _verseKeys too to avoid duplicates
-        final verseKeyIdentifier = '${verse.number}_$i';
-        if (!_verseKeys.containsKey(verse.number)) {
-          _verseKeys[verse.number] = GlobalKey();
-        }
-        final verseKey = _verseKeys[verse.number]!;
-        final uniqueWidgetKey = _uniqueVerseKeys[uniqueKeyIdentifier]!;
-        
         List<TextRange> hlRanges = highlightedRanges[_chapterKey]?[verse.number] ?? [];
         List<TextRange> ulRanges = underlinedRanges[_chapterKey]?[verse.number] ?? [];
 
@@ -663,35 +667,31 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         bool verseNumHighlighted = hlRanges.any((r) => r.start == 0 || r.start < verseNumText.length);
         bool verseNumUnderlined = ulRanges.any((r) => r.start == 0 || r.start < verseNumText.length);
 
-        // CRITICAL FIX: Create a unique GlobalKey for each verse number widget instance
-        final verseNumberKey = GlobalKey();  // ← Always create a new unique key
-
-        // FIX: Removed Directionality(textDirection: TextDirection.ltr) wrapper.
-        // Digits already render left-to-right in RTL context (Unicode BiDi rule).
-        // The LTR wrapper was causing verse numbers on the same line to swap
-        // positions due to BiDi reordering. Footnote numbers (which never had
-        // this wrapper) didn't have the problem.
-        allSpans.add(WidgetSpan(
-          alignment: PlaceholderAlignment.baseline,
-          baseline: TextBaseline.alphabetic,
-          child: _VerseNumberWidget(
-            key: verseNumberKey,
-            verseKey: verseKey,
-            verseNumText: verseNumText,
-            fontSize: widget.fontSize,
+        // FIX: Use TextSpan instead of WidgetSpan for verse numbers.
+        // WidgetSpan (U+FFFC placeholder) gets its visual position swapped
+        // with other WidgetSpans on the same line in RTL EditableText.
+        // TextSpan keeps the number as inline text in the BiDi flow, which
+        // the text layout engine positions correctly.
+        allSpans.add(TextSpan(
+          text: verseNumText,
+          style: TextStyle(
+            fontSize: widget.fontSize * 0.8,
+            fontWeight: FontWeight.bold,
+            color: verseNumHighlighted
+                ? _getContrastingTextColor(_highlightColor)
+                : themeProvider.verseNumberColor,
             fontFamily: isArabic ? widget.fontFamily : 'serif',
-            color: themeProvider.verseNumberColor,
-            isHighlighted: verseNumHighlighted,
-            isUnderlined: verseNumUnderlined,
-            primaryColor: Theme.of(context).primaryColor,
-            highlightColor: _highlightColor,
-            underlineColor: _underlineColor,
+            letterSpacing: 0.5,
+            height: 1.8,
+            backgroundColor: verseNumHighlighted ? _highlightColor : null,
+            decoration: verseNumUnderlined ? TextDecoration.underline : null,
+            decorationColor: verseNumUnderlined ? _underlineColor : Theme.of(context).primaryColor,
+            decorationThickness: 2,
           ),
         ));
-                        
-        // CRITICAL CHANGE: Don't add RTL markers in the spans
+
         allSpans.addAll(_buildVerseSpansForWidget(verse.text, hlRanges, ulRanges, isArabic, verse.number));
-        
+
         if (i < verses.length - 1) {
           allSpans.add(const TextSpan(text: ' '));
         }
@@ -862,16 +862,18 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         String verseText = widget.removeDiacritics ? BibleData.removeTashkeel(verse.text) : verse.text;
 
         // Convert to local position within verse text
-        // verseRange.start points to the verse number widget
-        // verseRange.start + 1 is where the actual text begins
-        int localHighlightStart = globalHighlightStart - (verseRange.start + 1);
-        int localHighlightEnd = globalHighlightEnd - (verseRange.start + 1);
+        // verseRange.start points to the verse number TextSpan
+        // Verse text begins after the verse number text (e.g. "1 ")
+        String verseNumStr = '${verseNum} ';
+        int localHighlightStart = globalHighlightStart - (verseRange.start + verseNumStr.length);
+        int localHighlightEnd = globalHighlightEnd - (verseRange.start + verseNumStr.length);
 
-        // Calculate displayed length (footnotes as widgets)
+        // Calculate displayed length (footnotes as TextSpan digits)
         RegExp footnotePattern = RegExp(r'\[(\d+)\]');
         int displayedLength = verseText.length;
         for (Match match in footnotePattern.allMatches(verseText)) {
-          displayedLength -= (match.group(0)!.length - 1); // [N] becomes single widget
+          int footnoteDigits = match.group(1)!.length;
+          displayedLength -= (match.group(0)!.length - footnoteDigits); // [N] becomes digit text
         }
 
         // Clamp to displayed length
@@ -940,13 +942,15 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         final verse = verses.firstWhere((v) => v.number == verseNum);
         String verseText = widget.removeDiacritics ? BibleData.removeTashkeel(verse.text) : verse.text;
 
-        int localUnderlineStart = globalUnderlineStart - (verseRange.start + 1);
-        int localUnderlineEnd = globalUnderlineEnd - (verseRange.start + 1);
+        String verseNumStr = '${verseNum} ';
+        int localUnderlineStart = globalUnderlineStart - (verseRange.start + verseNumStr.length);
+        int localUnderlineEnd = globalUnderlineEnd - (verseRange.start + verseNumStr.length);
 
         RegExp footnotePattern = RegExp(r'\[(\d+)\]');
         int displayedLength = verseText.length;
         for (Match match in footnotePattern.allMatches(verseText)) {
-          displayedLength -= (match.group(0)!.length - 1);
+          int footnoteDigits = match.group(1)!.length;
+          displayedLength -= (match.group(0)!.length - footnoteDigits);
         }
 
         localUnderlineStart = localUnderlineStart.clamp(0, displayedLength);
@@ -1007,14 +1011,12 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       currentDisplayPos += textBeforeBracket;
       currentOriginalPos = bracketStart + bracketLength;
 
-      // The bracket becomes 1 widget character in display
-      // FIX: Each [N] bracket (length bracketLength) maps to 1 display char.
-      // The shift in original coords is (bracketLength - 1), NOT bracketLength.
-      // Previously this added the full bracketLength, which over-shifted positions
-      // for any verse containing footnotes.
+      // The bracket becomes footnote digit text in display
+      // Each [N] bracket (length bracketLength) maps to digit chars (match.group(1).length).
+      int footnoteDigits = match.group(1)!.length;
       if (currentDisplayPos < displayPos) {
-        currentDisplayPos += 1;
-        originalPos += (bracketLength - 1);
+        currentDisplayPos += footnoteDigits;
+        originalPos += (bracketLength - footnoteDigits);
       }
     }
 
@@ -1035,9 +1037,10 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
         continue;
       }
       
-      // Account for verse number WidgetSpan (1 char: U+FFFC)
+      // Account for verse number TextSpan (e.g. "1 " = 2 chars)
+      String verseNumText = '${verse.number} ';
       int verseStartPos = currentPos;
-      currentPos += 1; // WidgetSpan
+      currentPos += verseNumText.length;
       
       String processedText = widget.removeDiacritics ? BibleData.removeTashkeel(verse.text) : verse.text;
       int verseTextLength = processedText.length;
@@ -1109,25 +1112,23 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       String char = fullEditableText[i];
       int code = char.codeUnitAt(0);
       
-      // Count: RTL marks, LRI/PDI marks, Object replacement (WidgetSpan)
+      // Count: RTL marks, LRI/PDI marks
       if (code == 0x200F ||  // RTL mark
-          code == 0x2066 ||  // LRI mark  
-          code == 0x2069 ||  // PDI mark
-          code == 0xFFFC) {  // Object replacement character (WidgetSpan)
+          code == 0x2066 ||  // LRI mark
+          code == 0x2069) {  // PDI mark
         specialCharsBeforeStart++;
       }
     }
-    
+
     // Count special characters before end position
     int specialCharsBeforeEnd = 0;
     for (int i = 0; i < editableSelection.end && i < fullEditableText.length; i++) {
       String char = fullEditableText[i];
       int code = char.codeUnitAt(0);
-      
+
       if (code == 0x200F ||  // RTL mark
           code == 0x2066 ||  // LRI mark
-          code == 0x2069 ||  // PDI mark
-          code == 0xFFFC) {  // Object replacement character
+          code == 0x2069) {  // PDI mark
         specialCharsBeforeEnd++;
       }
     }
@@ -1179,28 +1180,27 @@ class _ChapterContentPageState extends State<ChapterContentPage> {
       
       bool footnoteHighlighted = hlRanges.any((r) => r.start <= start && r.end >= end);
       bool footnoteUnderlined = ulRanges.any((r) => r.start <= start && r.end >= end);
-      
-      final footnoteKeyId = 'fn_${footnoteNum}_${verseNumber}_$matchIndex';
-      if (!_footnoteNumberKeys.containsKey(footnoteKeyId)) {
-        _footnoteNumberKeys[footnoteKeyId] = GlobalKey();
-      }
-      final footnoteNumberKey = _footnoteNumberKeys[footnoteKeyId]!;
 
-      spans.add(WidgetSpan(
-        alignment: PlaceholderAlignment.baseline,
-        baseline: TextBaseline.alphabetic,
-        child: _FootnoteNumberWidget(
-          key: footnoteNumberKey,
-          footnoteNum: footnoteNum,
-          fontSize: widget.fontSize,
+      // FIX: Use TextSpan instead of WidgetSpan for footnote numbers.
+      // Same RTL BiDi fix as verse numbers — WidgetSpan (U+FFFC) gets
+      // swapped on the same visual line in RTL EditableText.
+      final recognizer = TapGestureRecognizer()..onTap = () => _scrollToFootnote(footnoteNum);
+      _footnoteRecognizers.add(recognizer);
+
+      spans.add(TextSpan(
+        text: match.group(1)!,
+        style: TextStyle(
+          fontSize: widget.fontSize * 0.65,
+          fontWeight: FontWeight.bold,
           color: themeProvider.footnoteNumberColor,
-          isHighlighted: footnoteHighlighted,
-          isUnderlined: footnoteUnderlined,
-          primaryColor: Theme.of(context).primaryColor,
-          onTap: () => _scrollToFootnote(footnoteNum),
-          highlightColor: _highlightColor,  // ADD THIS
-          underlineColor: _underlineColor,  // ADD THIS
+          fontFeatures: const [FontFeature.superscripts()],
+          height: 1.8,
+          backgroundColor: footnoteHighlighted ? _highlightColor : null,
+          decoration: footnoteUnderlined ? TextDecoration.underline : null,
+          decorationColor: footnoteUnderlined ? _underlineColor : Theme.of(context).primaryColor,
+          decorationThickness: 2,
         ),
+        recognizer: recognizer,
       ));
             
       lastEnd = end;
@@ -1497,118 +1497,6 @@ class VerseData {
   });
 }
 
-
-
-class _VerseNumberWidget extends StatefulWidget {
-  final GlobalKey verseKey;
-  final String verseNumText;
-  final double fontSize;
-  final String fontFamily;
-  final Color color;
-  final bool isHighlighted;
-  final bool isUnderlined;
-  final Color primaryColor;
-  final Color highlightColor;
-  final Color underlineColor;
-  
-  const _VerseNumberWidget({
-    required Key key,
-    required this.verseKey,
-    required this.verseNumText,
-    required this.fontSize,
-    required this.fontFamily,
-    required this.color,
-    required this.isHighlighted,
-    required this.isUnderlined,
-    required this.primaryColor,
-    required this.highlightColor,  // ADD THIS
-    required this.underlineColor,  // ADD THIS
-  }) : super(key: key);
-  
-  @override
-  State<_VerseNumberWidget> createState() => _VerseNumberWidgetState();
-}
-
-class _FootnoteNumberWidget extends StatefulWidget {
-  final int footnoteNum;
-  final double fontSize;
-  final Color color;
-  final bool isHighlighted;
-  final bool isUnderlined;
-  final Color primaryColor;
-  final VoidCallback onTap;
-  final Color highlightColor;
-  final Color underlineColor;
-  
-  const _FootnoteNumberWidget({
-    required Key key,
-    required this.footnoteNum,
-    required this.fontSize,
-    required this.color,
-    required this.isHighlighted,
-    required this.isUnderlined,
-    required this.primaryColor,
-    required this.onTap,
-    required this.highlightColor,  // ADD THIS
-    required this.underlineColor,  // ADD THIS
-  }) : super(key: key);
-  
-  @override
-  State<_FootnoteNumberWidget> createState() => _FootnoteNumberWidgetState();
-}
-
-class _FootnoteNumberWidgetState extends State<_FootnoteNumberWidget> {
-  @override
-  Widget build(BuildContext context) {
-    // FIX: Use a single Text widget with backgroundColor in TextStyle instead
-    // of wrapping in a Container with padding. Same fix as verse numbers —
-    // keeps widget size stable across highlighted/non-highlighted states.
-    return GestureDetector(
-      onTap: widget.onTap,
-      behavior: HitTestBehavior.translucent,
-      child: Text(
-        '\u2066${widget.footnoteNum}\u2069',
-        style: TextStyle(
-          fontSize: widget.fontSize * 0.65,
-          fontWeight: FontWeight.bold,
-          color: widget.color,
-          fontFeatures: const [FontFeature.superscripts()],
-          height: 1.8,
-          backgroundColor: widget.isHighlighted ? widget.highlightColor : null,
-          decoration: widget.isUnderlined ? TextDecoration.underline : null,
-          decorationColor: widget.isUnderlined ? widget.underlineColor : widget.primaryColor,
-          decorationThickness: 2,
-        ),
-      ),
-    );
-  }
-}
-
-class _VerseNumberWidgetState extends State<_VerseNumberWidget> {
-  @override
-  Widget build(BuildContext context) {
-    // FIX: Use a single Text widget for both highlighted and non-highlighted
-    // states, applying backgroundColor via TextStyle instead of wrapping in a
-    // Container with padding. The Container approach changed the widget's size,
-    // causing highlight height to shrink and underlines to shift up.
-    return Text(
-      widget.verseNumText,
-      key: widget.verseKey,
-      style: TextStyle(
-        fontSize: widget.fontSize * 0.8,
-        fontWeight: FontWeight.bold,
-        color: widget.color,
-        fontFamily: widget.fontFamily,
-        letterSpacing: 0.5,
-        height: 1.8,
-        backgroundColor: widget.isHighlighted ? widget.highlightColor : null,
-        decoration: widget.isUnderlined ? TextDecoration.underline : null,
-        decorationColor: widget.isUnderlined ? widget.underlineColor : widget.primaryColor,
-        decorationThickness: 2,
-      ),
-    );
-  }
-}
 
 
 //helb

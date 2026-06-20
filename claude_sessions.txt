@@ -1,0 +1,1 @@
+claude --resume "fix arabic rtl verse and footnote number hanet"
